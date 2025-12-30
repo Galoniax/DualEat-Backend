@@ -1,0 +1,16 @@
+import { Router } from "express";
+import { VoteController } from "./vote.controller";
+import { isAuthenticated } from "../../core/middlewares/isAuthenticated";
+import { VoteService } from "./vote.service";
+
+const router = Router();
+
+const service = new VoteService();
+
+const controller = new VoteController(service);
+
+// 1. Crear un voto
+// =========================================================
+router.post("/create", isAuthenticated, controller.create.bind(controller));
+
+export default router;
