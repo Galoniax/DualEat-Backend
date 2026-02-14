@@ -1,7 +1,9 @@
 import { UserService } from "../services/user.service";
 import { Request, Response } from "express";
 import { RECAPTCHA_SECRET_KEY, SECRET_KEY } from "../../../core/config/config";
+
 import { prisma } from "../../../core/database/prisma/prisma";
+
 import jwt from "jsonwebtoken";
 import axios from "axios";
 
@@ -10,20 +12,16 @@ import {
   BasicCreateDTO,
   UserSessionData,
   TempTokenPayload,
+  SecureTokenPayload,
 } from "../../../shared/interfaces/user.dto";
 
 import { comparePassword, hashPassword } from "../../../shared/utils/hash";
 
 import {
-  createTokenPair,
+  createSecureToken,
   createTempToken,
   verifyTempToken,
-  verifyRefreshToken,
-  hashTokenId,
-  createAccessToken,
-  createRefreshToken,
 } from "../../../shared/utils/jwt";
-
 import AuthSessionService from "../services/auth-session.service";
 import { generateUniqueSlug } from "../../../shared/utils/sluglify";
 
@@ -32,12 +30,30 @@ export class AuthController {
 
   constructor(private userService: UserService) {}
 
-  login = async (req: Request, res: Response) => {
-    const { email, password, rememberMe, recaptchaToken, isMobile } = req.body;
-
+  // 1. INICIO DE SESIÓN
+  async login(req: Request, res: Response) {
     try {
-      // ===== reCAPTCHA =====
-      if (!recaptchaToken) {
+      const { email, password, remember, recaptcha, deviceId } =
+        req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({
+          success: false,
+          message: "Email y contraseña son obligatorios",
+        });
+      }
+
+      if (!deviceId) {
+        return res.status(400).json({
+          success: false,
+          message: "Device ID es obligatorio para la autenticación",
+        });
+      }
+
+      // ============================================================
+      // 2. VERIFICACIÓN DE SEGURIDAD (RECAPTCHA)
+      // ============================================================
+      if (!recaptcha) {
         return res.status(400).json({
           success: false,
           message: "reCAPTCHA no proporcionado",
@@ -50,9 +66,9 @@ export class AuthController {
         {
           params: {
             secret: RECAPTCHA_SECRET_KEY,
-            response: recaptchaToken,
+            response: recaptcha,
           },
-        }
+        },
       );
 
       if (!recaptchaResponse.data.success) {
@@ -62,8 +78,11 @@ export class AuthController {
         });
       }
 
-      // ===== VERIFICACIÓN DE CREDENCIALES =====
+      // ============================================================
+      // 3. VERIFICACIÓN DE CREDENCIALES (DB)
+      // ============================================================
       const user = await this.userService.getByEmail(email);
+
       if (!user) {
         return res.status(401).json({
           success: false,
@@ -73,8 +92,9 @@ export class AuthController {
 
       const passwordMatch = await comparePassword(
         password,
-        user.password_hash || ""
+        user.password_hash || "",
       );
+
       if (!passwordMatch) {
         return res.status(401).json({
           success: false,
@@ -82,7 +102,9 @@ export class AuthController {
         });
       }
 
-      // ===== PREPARAR DATOS PARA SESIÓN =====
+      // ============================================================
+      // 4. PREPARACIÓN DE DATOS DE SESIÓN
+      // ============================================================
       const userData: UserSessionData = {
         id: user.id,
         name: user.name,
@@ -95,286 +117,181 @@ export class AuthController {
         subscription_status: user.subscription_status,
         trial_ends_at: user.trial_ends_at,
         avatar_url: user.avatar_url ?? null,
+        
         loginAt: new Date(),
         lastActivity: new Date(),
+        deviceId: deviceId,
       };
 
-      // ===== CREAR PAR DE TOKENS (Access + Refresh) =====
-      const { accessToken, refreshToken } = await createTokenPair(
+      // ============================================================
+      // 5. GENERACIÓN DE TOKEN Y COOKIE
+      // ============================================================
+
+      // Crear Token
+      const accessToken = await createSecureToken(
         userData,
-        rememberMe || false,
-        isMobile || false
+        remember || false,
+        deviceId,
       );
 
-      console.log(
-        `🔐 Login exitoso para: ${email} (isMobile: ${isMobile}, rememberMe: ${rememberMe})`
-      );
+      const cookieMaxAge = remember
+        ? 14 * 24 * 60 * 60 * 1000
+        : 24 * 60 * 60 * 1000;
 
-      // ===== MOBILE: Retornar tokens en el body =====
-      if (isMobile) {
-        return res.status(200).json({
-          success: true,
-          message: "Login exitoso",
-          user: userData,
-          accessToken,
-          refreshToken,
-        });
-      }
-
-      // ===== WEB: Configurar cookies seguras =====
-      const accessCookieOptions = {
+      const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         path: "/",
         sameSite: "strict" as const,
-        maxAge: 15 * 60 * 1000, // 15 minutos
+        maxAge: cookieMaxAge,
       };
 
-      const refreshCookieOptions = {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        path: "/api/auth/refresh", // Solo accesible en el endpoint de refresh
-        sameSite: "strict" as const,
-        maxAge: rememberMe
-          ? 7 * 24 * 60 * 60 * 1000 // 7 días
-          : 24 * 60 * 60 * 1000, // 24 horas
-      };
+      console.log(`Login exitoso. User: ${email}, Device: ${deviceId}, Remember: ${remember}`);
 
+      // ============================================================
+      // 6. RESPUESTA FINAL
+      // ============================================================
       return res
-        .cookie("accessToken", accessToken, accessCookieOptions)
-        .cookie("refreshToken", refreshToken, refreshCookieOptions)
+        .cookie("accessToken", accessToken, cookieOptions)
         .status(200)
         .json({
           success: true,
           message: "Login exitoso",
+          token: accessToken,
           user: userData,
         });
-    } catch (error) {
-      console.error("❌ Login error:", error);
+    } catch (e) {
+      console.error("Login error:", e);
       return res.status(500).json({
         success: false,
         message: "Error interno del servidor",
       });
     }
-  };
+  }
 
-  refresh = async (req: Request, res: Response) => {
+  // 2. REGISTRO INICIAL
+  async register(req: Request, res: Response) {
     try {
-      let refreshToken: string | null = null;
-      let isMobile = false;
+      // ==================== VALIDACIÓN DE INPUTS =====================
+      const { email, password, deviceId } = req.body;
 
-      // Obtener refresh token desde header (mobile) o cookie (web)
-      const authHeader = req.headers.authorization;
-
-      if (authHeader && authHeader.startsWith("Bearer ")) {
-        refreshToken = authHeader.substring(7);
-        isMobile = true;
-        console.log("📱 Refresh desde mobile");
-      } else if (req.cookies?.refreshToken) {
-        refreshToken = req.cookies.refreshToken;
-        isMobile = false;
-        console.log("🌐 Refresh desde web");
-      }
-
-      if (!refreshToken) {
-        return res.status(401).json({
+      if (!email || !password) {
+        return res.status(400).json({
           success: false,
-          message: "Refresh token no encontrado",
+          message: "Email y contraseña son obligatorios",
         });
       }
 
-      // Verificar refresh token
-      const payload = verifyRefreshToken(refreshToken);
-      const sessionId = payload.ses;
-      const jti = payload.jti;
-
-      // Verificar que el refresh token no haya sido revocado
-      const hashedJti = hashTokenId(jti);
-      const isValid = await this.authSessionService.isRefreshTokenValid(
-        sessionId,
-        hashedJti
-      );
-
-      if (!isValid) {
-        console.warn("⚠️ Refresh token inválido o revocado");
-        return res.status(401).json({
+      if (!deviceId) {
+        return res.status(400).json({
           success: false,
-          message: "Refresh token inválido o revocado",
+          message: "Device ID es obligatorio para el registro",
         });
       }
 
-      // Obtener datos de sesión
-      const userData = await this.authSessionService.getSession(
-        sessionId,
-        isMobile
-      );
-
-      if (!userData) {
-        console.warn("⚠️ Sesión expirada en refresh");
-        return res.status(401).json({
+      const eUser = await this.userService.getByEmail(email);
+      if (eUser) {
+        return res.status(409).json({
           success: false,
-          message: "Sesión expirada",
+          message: "El usuario ya existe con este correo",
         });
       }
 
-      // Verificar que el usuario siga activo
-      if (!userData.active) {
-        await this.authSessionService.deleteSession(sessionId);
-        return res.status(401).json({
-          success: false,
-          message: "Usuario inactivo",
-        });
-      }
+      // ============================================================
+      // 3. PROCESAMIENTO Y TOKEN TEMPORAL
+      // ============================================================
 
-      // ROTACIÓN DE TOKENS:
-      // 1. Revocar el refresh token actual
-      await this.authSessionService.revokeRefreshToken(sessionId, hashedJti);
-
-      // 2. Crear nuevo par de tokens
-      const newAccessToken = await createAccessToken(
-        userData,
-        sessionId,
-        isMobile
-      );
-      const newRefreshToken = await createRefreshToken(sessionId, isMobile);
-
-      console.log(`🔄 Tokens renovados para sesión: ${sessionId}`);
-
-      // Para mobile: retornar en el body
-      if (isMobile) {
-        return res.status(200).json({
-          success: true,
-          accessToken: newAccessToken,
-          refreshToken: newRefreshToken,
-        });
-      }
-
-      // Para web: actualizar cookies
-      const accessCookieOptions = {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        sameSite: "strict" as const,
-        maxAge: 15 * 60 * 1000,
-      };
-
-      const refreshCookieOptions = {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        path: "/api/auth/refresh",
-        sameSite: "strict" as const,
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      };
-
-      return res
-        .cookie("accessToken", newAccessToken, accessCookieOptions)
-        .cookie("refreshToken", newRefreshToken, refreshCookieOptions)
-        .status(200)
-        .json({
-          success: true,
-          message: "Tokens renovados",
-        });
-    } catch (error: any) {
-      console.error("❌ Error en refresh:", error);
-
-      // Distinguir entre token expirado y otros errores
-      const isExpired = error.name === "TokenExpiredError";
-
-      return res.status(401).json({
-        success: false,
-        message: isExpired
-          ? "Refresh token expirado"
-          : "Error renovando tokens",
-      });
-    }
-  };
-
-  register = async (req: Request, res: Response) => {
-    const { email, password, isMobile } = req.body;
-
-    console.log(isMobile ? "📱 Registro desde móvil" : "🌐 Registro desde web");
-
-    try {
-      const existingUser = await this.userService.getByEmail(email);
-      if (existingUser) {
-        return res
-          .status(409)
-          .json({ success: false, message: "El usuario ya existe" });
-      }
-
+      // Hash de la contraseña
       const hashedPassword = await hashPassword(password);
 
-      const tempToken: string = createTempToken({
+      // Crear token temporal
+      const ttp: TempTokenPayload = {
         email,
         password_hash: hashedPassword,
         step: "incomplete_registration",
         provider: "local",
-        isMobile,
-      });
+        dev: deviceId,
+      };
+
+      const tempToken = createTempToken(ttp);
 
       return res.status(200).json({
         success: true,
-        message: "Trasladando a Preferencias",
+        message: "Credenciales válidas. Continuando a preferencias.",
         next_step: `/onboarding?tempToken=${tempToken}`,
       });
     } catch (error) {
-      console.error("❌ Error en registro:", error);
-      return res
-        .status(500)
-        .json({ success: false, message: "Error interno del servidor" });
+      console.error("Register Error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error interno del servidor",
+      });
     }
-  };
+  }
 
-  completeProfile = async (req: Request, res: Response) => {
-    const {
-      name,
-      foodPreferences,
-      communityPreferences,
-      tempToken,
-    }: RegisterStepTwoDto & { tempToken: string } = req.body;
-
-    console.log("✏️ Completando perfil");
-
+  // 3. COMPLETAR PERFIL Y CREAR USUARIO
+  async completeProfile(req: Request, res: Response) {
     try {
-      const model = prisma.user;
+      // ==================== EXTRACCIÓN =====================
+      const { name, foodPreferences, communityPreferences, tempToken } =
+        req.body as RegisterStepTwoDto & { tempToken: string };
+
       if (!tempToken) {
-        return res
-          .status(401)
-          .json({ message: "Token temporal no proporcionado" });
+        return res.status(401).json({
+          success: false,
+          message: "Token de registro no proporcionado",
+        });
       }
 
       let tempData: TempTokenPayload;
       try {
         tempData = verifyTempToken(tempToken);
       } catch (err) {
-        return res
-          .status(401)
-          .json({ message: "Token temporal inválido o expirado" });
+        return res.status(401).json({
+          success: false,
+          message:
+            "La sesión de registro ha expirado. Por favor inicia de nuevo.",
+        });
       }
 
-      if (
-        tempData.step !== "incomplete_registration" &&
-        tempData.step !== "incomplete_oauth_registration"
-      ) {
-        return res.status(401).json({ message: "Token temporal no válido" });
-      }
+      // ============================================================
+      // 2. PREPARACIÓN DE DATOS DEL USUARIO
+      // ============================================================
+      const model = prisma.user;
 
+      // Generar Slug único
       const userSlug = await generateUniqueSlug(name.trim(), model);
+
+      // URL de Avatar por defecto
+      const DEFAULT_AVATAR =
+        "https://ohhvldagwoycuifwhgtc.supabase.co/storage/v1/object/public/assets/DefaultProfile.png";
 
       const userDataToCreate: BasicCreateDTO = {
         email: tempData.email,
-        name,
+        name: name.trim(),
         slug: String(userSlug),
         password_hash: tempData.password_hash || undefined,
-        avatar_url:
-          tempData.avatar_url ||
-          "https://ohhvldagwoycuifwhgtc.supabase.co/storage/v1/object/public/assets/DefaultProfile.png",
+        avatar_url: tempData.avatar_url || DEFAULT_AVATAR,
         provider: tempData.provider || "local",
         foodPreferences,
         communityPreferences,
       };
 
+      // ============================================================
+      // 3. CREACIÓN EN BASE DE DATOS
+      // ============================================================
       const user = await this.userService.create(userDataToCreate);
+
+      if (!user) {
+        throw new Error("Error al crear el usuario en la base de datos");
+      }
+
+      // ============================================================
+      // 4. INICIO DE SESIÓN AUTOMÁTICO
+      // ============================================================
+
+      // Recuperamos el DeviceID
+      const deviceId = tempData.dev || "unknown_device";
 
       const userSessionData: UserSessionData = {
         id: user.id,
@@ -387,76 +304,83 @@ export class AuthController {
         active: user.active,
         subscription_status: user.subscription_status,
         trial_ends_at: user.trial_ends_at,
-        avatar_url: user.avatar_url ?? null,
+        avatar_url: user.avatar_url,
+
         loginAt: new Date(),
         lastActivity: new Date(),
+        deviceId: deviceId,
       };
 
-      const { accessToken, refreshToken } = await createTokenPair(
+      // Crear Token Definitivo
+      const accessToken = await createSecureToken(
         userSessionData,
         true,
-        tempData.isMobile || false
+        deviceId,
       );
 
-      // Para mobile: retornar tokens
-      if (tempData.isMobile) {
-        return res.status(201).json({
-          success: true,
-          message: "Perfil completado exitosamente",
-          user: userSessionData,
-          accessToken,
-          refreshToken,
-        });
-      }
+      // ============================================================
+      // 5. RESPUESTA UNIFICADA
+      // ============================================================
+      const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        sameSite: "strict" as const,
+        maxAge: 14 * 24 * 60 * 60 * 1000,
+      };
 
-      // Para web: cookies
+      console.log(res);
+
       return res
-        .cookie("accessToken", accessToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          path: "/",
-          sameSite: "strict",
-          maxAge: 15 * 60 * 1000,
-        })
-        .cookie("refreshToken", refreshToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          path: "/api/auth/refresh",
-          sameSite: "strict",
-          maxAge: 7 * 24 * 60 * 60 * 1000,
-        })
+        .cookie("accessToken", accessToken, cookieOptions)
         .status(201)
         .json({
           success: true,
-          message: "Perfil completado exitosamente",
+          message: "Registro completado exitosamente",
           user: userSessionData,
+          token: accessToken,
         });
-    } catch (error) {
-      console.error("❌ Error al completar perfil:", error);
-      return res.status(500).json({ message: "Error interno del servidor" });
-    }
-  };
 
-  logout = async (req: Request, res: Response) => {
+        
+    } catch (e) {
+      console.error("Error al completar el perfil:", e);
+      return res.status(500).json({
+        success: false,
+        message: "Error interno al completar el perfil",
+      });
+    }
+  }
+
+  // 4. LOGOUT
+  async logout(req: Request, res: Response) {
     try {
-      const token =
-        req.cookies?.accessToken || req.headers.authorization?.substring(7);
+      let token = req.cookies.accessToken;
+
+      if (!token && req.headers.authorization) {
+        const header = req.headers.authorization;
+        if (header.startsWith("Bearer ")) {
+          token = header.substring(7, header.length);
+        }
+      }
 
       if (token) {
         try {
-          const decoded = jwt.verify(token, SECRET_KEY) as any;
+          const decoded = jwt.verify(token, SECRET_KEY, {
+            ignoreExpiration: true,
+          }) as SecureTokenPayload;
           const sessionId = decoded.ses;
 
           if (sessionId) {
             await this.authSessionService.deleteSession(sessionId);
-            console.log(`🗑️ Sesión eliminada en logout: ${sessionId}`);
+            console.log(`Sesión eliminada en logout: ${sessionId}`);
           }
         } catch (jwtError) {
-          console.log("Token inválido en logout, solo limpiando cookies");
+          console.log(
+            "Token inválido o corrupto en logout, ignorando limpieza de Redis.",
+          );
         }
       }
 
-      // Limpiar ambas cookies
       res.clearCookie("accessToken", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -464,28 +388,16 @@ export class AuthController {
         path: "/",
       });
 
-      res.clearCookie("refreshToken", {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        path: "/api/auth/refresh",
-      });
-
       return res.status(200).json({
         success: true,
         message: "Sesión cerrada exitosamente",
       });
-    } catch (error) {
-      console.error("❌ Error en logout:", error);
-
-      // Intentar limpiar cookies de todos modos
-      res.clearCookie("accessToken");
-      res.clearCookie("refreshToken");
-
+    } catch (e) {
+      console.error("Error en logout:", e);
       return res.status(200).json({
         success: true,
         message: "Sesión cerrada",
       });
     }
-  };
+  }
 }

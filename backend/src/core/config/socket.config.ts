@@ -44,7 +44,7 @@ export function initializeSocket(httpServer: HttpServer) {
         });
     });
 
-    console.log("✅ Socket.io OK - Servidor de tiempo real inicializado.");
+    console.log("Socket.io OK - Servidor de tiempo real inicializado.");
 }
 
 /**

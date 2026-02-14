@@ -33,8 +33,20 @@ export class CommunityTagService {
   async getAllCommunityTags() {
     try {
       return await prisma.communityTag.findMany({
+        where: {
+          active: true,
+        },
         include: {
+          select: {
+            id: true,
+            name: true,
+            icon_url: true,
+            slug: true,
+          },
           category: true,
+        },
+        orderBy: {
+          name: "asc",
         },
       });
     } catch (error) {

@@ -1,7 +1,7 @@
 services:
   # ===== POSTGRES =====
   postgres:
-    image: postgres:16-alpine  # Versión específica y más liviana
+    image: postgres:16-alpine # Versión específica y más liviana
     container_name: dualeat_postgres
     environment:
       - POSTGRES_DB=DualEat
@@ -74,25 +74,6 @@ services:
       - dualeat-network
     restart: unless-stopped
 
-  # ===== OLLAMA =====
-  ollama:
-    image: ollama/ollama:latest
-    container_name: dualeat_ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-      - ./ollama_models:/ollama_models
-    networks:
-      - dualeat-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
-    restart: unless-stopped
-
   # ===== BACKEND =====
   backend:
     build:
@@ -107,8 +88,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      ollama:
-        condition: service_started
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://DualEat:DualEat21102504@postgres:5432/DualEat
@@ -116,16 +95,16 @@ services:
       - MOBILE_URL=http://localhost:8082
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - OLLAMA_HOST=http://ollama:11434
     env_file:
       - ./backend/.env
     volumes:
       - ./backend:/app
       - /app/node_modules
-      - backend_logs:/app/logs  # Para logs persistentes
+      - backend_logs:/app/logs # Para logs persistentes
     networks:
       - dualeat-network
-    command: ["sh", "-c", "npx prisma db push --accept-data-loss && npm run dev"]
+    command:
+      ["sh", "-c", "npx prisma db push --accept-data-loss && npm run dev"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
@@ -133,7 +112,6 @@ services:
       retries: 3
       start_period: 40s
     restart: unless-stopped
-
 
 networks:
   dualeat-network:
@@ -143,6 +121,6 @@ volumes:
   postgres_data:
   pgadmin_data:
   redis_data:
-  ollama_data:
-  ollama_models:
   backend_logs:
+  #ollama_data:
+  #ollama_models:

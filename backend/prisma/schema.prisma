@@ -23,7 +23,7 @@ generator client {
 generator erd {
   provider    = "prisma-erd-generator"
   theme       = "dark"
-  output      = "../DER.svg"
+  output      = "../../design/DER.pdf"
   ignoreEnums = true
   disabled    = true
 }
@@ -57,8 +57,6 @@ enum OrderStatus {
   confirmed
   preparing
   ready
-  delivered
-  cancelled
 }
 
 enum Visibility {
@@ -83,8 +81,7 @@ enum TypesCategory {
 }
 
 enum NotificationFrequency {
-  FREQUENT
-  RARE
+  ALWAYS
   NONE
 }
 
@@ -93,7 +90,6 @@ enum NotificationContentType {
   COMMUNITY
   LOCAL
   ORDER
-  FOLLOWER
   COMMENT
 }
 
@@ -110,7 +106,6 @@ enum DayOfWeek {
 enum LocalEventType {
   TASK
   PAYMENT
-  DELIVERY
   MEETING
   MAINTENANCE
   OTHER
@@ -144,7 +139,9 @@ enum SubscriptionPlan {
   COMMUNITY_USER_ANNUAL
 }
 
-// MODELS
+// ========================================================
+// MODELO DE USUARIOS Y NOTIFICACIONES
+// ========================================================
 model User {
   // 1. IDENTIFICACIÓN Y PERFIL
   id         String  @id @default(cuid()) @map("id")
@@ -166,15 +163,15 @@ model User {
   is_business         Boolean               @default(false)
   subscription_status SubscriptionStatus    @default(inactive)
   trial_ends_at       DateTime?
-  notificationsPref   NotificationFrequency @default(FREQUENT)
+  notificationsPref   NotificationFrequency @default(ALWAYS)
 
   // 4. TIMESTAMPS
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   // 5. RELACIONES
+  //coupons             Coupon[]
   notifications       Notification[]
-  owned_businesses    Business[]        @relation("BusinessOwner")
   local_users         LocalUser[]
   local_reviews       LocalReview[]
   votes               Vote[]            @relation("UserVotes")
@@ -185,12 +182,24 @@ model User {
   orders              Order[]
   subscriptions       Subscription[]
   preferences         UserPreference[]
-  //userAchievement     UserAchievement[]
   recipes             Recipe[]
-  //following           Follows[]         @relation("FollowingRelation")
-  //followers           Follows[]         @relation("FollowerRelation")
 
   @@index([email])
+}
+
+model UserPreference {
+  id      Int    @id @default(autoincrement())
+  user    User   @relation(fields: [user_id], references: [id])
+  user_id String
+
+  food_category_id Int?
+  community_tag_id Int?
+
+  foodCategory FoodCategory? @relation(fields: [food_category_id], references: [id])
+  communityTag CommunityTag? @relation(fields: [community_tag_id], references: [id])
+
+  @@unique([user_id, food_category_id])
+  @@unique([user_id, community_tag_id])
 }
 
 model Notification {
@@ -211,76 +220,44 @@ model Notification {
   @@index([created_at, user_id])
 }
 
-/**
- * model Follows {
- * // El usuario que sigue (ej: A sigue a B)
- * follower    User   @relation("FollowingRelation", fields: [follower_id], references: [id])
- * follower_id String
- * // El usuario que es seguido (ej: B es seguido por A)
- * following    User   @relation("FollowerRelation", fields: [following_id], references: [id])
- * following_id String
- * created_at   DateTime @default(now())
- * @@id([follower_id, following_id])
- * }
- */
-
-model UserPreference {
-  id      Int    @id @default(autoincrement())
-  user    User   @relation(fields: [user_id], references: [id])
-  user_id String
-
-  food_category_id Int?
-  community_tag_id Int?
-
-  foodCategory FoodCategory? @relation(fields: [food_category_id], references: [id])
-  communityTag CommunityTag? @relation(fields: [community_tag_id], references: [id])
-
-  @@unique([user_id, food_category_id])
-  @@unique([user_id, community_tag_id])
-}
-
-model Business {
-  id         String   @id @default(cuid()) @map("id")
-  name       String?
-  owner_id   String
-  owner      User     @relation("BusinessOwner", fields: [owner_id], references: [id])
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  active     Boolean  @default(true)
-
-  branches Local[]
-}
+// ========================================================
+// MODELO DE NEGOCIOS Y LOCALES
+// ========================================================
 
 model Local {
-  id              String   @id @default(cuid()) @map("id")
-  slug            String   @unique
-  name            String
-  description     String?
-  address         String?
-  phone           String?
-  email           String?
-  image_url       String
-  latitude        Float?
-  longitude       Float?
-  categorias_menu String[]
-  average_rating  Float    @default(0)
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
+  id          String  @id @default(cuid()) @map("id")
+  slug        String  @unique
+  name        String
+  description String?
+  address     String
+  phone       String?
+  email       String?
 
-  business_id     String
-  business        Business            @relation(fields: [business_id], references: [id])
-  local_users     LocalUser[]
-  foods           Food[]
-  orders          Order[]
-  reviews         LocalReview[]
-  menu_categories LocalMenuCategory[]
+  type_local String
+  image_url  String
 
+  latitude  Float
+  longitude Float
+
+  average_rating Float    @default(0)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  local_users LocalUser[]
+  foods       Food[]
+  orders      Order[]
+  reviews     LocalReview[]
+
+  promotions      Promotion[]
+  //coupons         Coupon[]
   schedules       LocalSchedule[]
   calendar_events LocalCalendarEvent[]
   notes           LocalNote[]
   Subscription    Subscription[]
 
-  @@index([business_id])
+  categories FoodCategory[] @relation("LocalCategories")
+
+  @@index([name, latitude, longitude])
 }
 
 model LocalSchedule {
@@ -291,25 +268,7 @@ model LocalSchedule {
   local_id    String
   local       Local     @relation(fields: [local_id], references: [id])
 
-  @@unique([local_id, day_of_week])
-}
-
-model LocalMenuCategory {
-  id               Int     @id @default(autoincrement())
-  name             String
-  description      String?
-  icon_url         String?
-  local_id         String
-  food_category_id Int?
-
-  local         Local         @relation(fields: [local_id], references: [id])
-  food_category FoodCategory? @relation(fields: [food_category_id], references: [id])
-
-  foods Food[]
-
-  @@unique([local_id, name])
-  @@index([local_id])
-  @@index([food_category_id])
+  @@unique([local_id, day_of_week, open_time, close_time])
 }
 
 model LocalCalendarEvent {
@@ -351,80 +310,18 @@ model LocalNote {
 }
 
 model LocalUser {
-  id         String        @id @default(cuid()) @map("id")
-  user       User          @relation(fields: [user_id], references: [id])
-  user_id    String
-  local      Local         @relation(fields: [local_id], references: [id])
-  local_id   String
-  role       LocalUserRole @default(staff)
-  joined_at  DateTime      @default(now())
-  updated_at DateTime      @updatedAt
+  id       String        @id @default(cuid()) @map("id")
+  user     User          @relation(fields: [user_id], references: [id])
+  user_id  String
+  local    Local         @relation(fields: [local_id], references: [id])
+  local_id String
+  role     LocalUserRole @default(staff)
+
+  joined_at  DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   @@unique([user_id, local_id])
   @@index([local_id])
-}
-
-model FoodCategory {
-  id          Int           @id @default(autoincrement())
-  name        String        @unique
-  description String?
-  tipo        TypesCategory
-  icon_url    String?
-
-  foods            Food[]
-  user_preferences UserPreference[]
-  local_categories LocalMenuCategory[]
-
-  @@index([name])
-}
-
-model Food {
-  id                     String        @id @default(cuid()) @map("id")
-  slug                   String?
-  local                  Local         @relation(fields: [local_id], references: [id])
-  local_id               String
-  category               FoodCategory? @relation(fields: [category_id], references: [id])
-  category_id            Int?
-  local_menu_category_id Int?
-  name                   String
-  description            String?
-  price                  Float
-  discount               Boolean       @default(false)
-  image_url              String?
-  available              Boolean       @default(true)
-  votes_up               Int           @default(0)
-  votes_down             Int           @default(0)
-  created_at             DateTime      @default(now())
-  updated_at             DateTime      @updatedAt
-
-  order_items OrderItem[]
-
-  local_menu_category LocalMenuCategory? @relation(fields: [local_menu_category_id], references: [id])
-
-  @@index([local_id])
-  @@index([name])
-  @@index([price])
-  @@index([category_id])
-  @@index([local_menu_category_id])
-}
-
-/**
- * Promoción  (tabla para evitar que solo una comida tenga solo una promo
- */
-
-model Vote {
-  id           Int         @id @default(autoincrement())
-  user         User        @relation("UserVotes", fields: [user_id], references: [id])
-  user_id      String
-  content_type ContentType
-  content_id   String
-  vote_type    VoteType
-  created_at   DateTime    @default(now())
-  updated_at   DateTime    @updatedAt
-
-  //food Food? @relation("FoodVotes", fields: [content_id], references: [id])
-
-  @@unique([user_id, content_type, content_id])
 }
 
 model LocalReview {
@@ -441,16 +338,118 @@ model LocalReview {
   @@unique([user_id, local_id])
 }
 
-model TagCategory {
-  id          Int     @id @default(autoincrement())
-  slug        String  @unique
-  name        String  @unique
-  description String?
+// ========================================================
+// MODELO DE COMIDAS Y CATEGORÍAS
+// ========================================================
+model FoodCategory {
+  id          Int           @id @default(autoincrement())
+  name        String        @unique
+  tipo        TypesCategory
   icon_url    String?
 
-  communityTags CommunityTag[]
+  foods            Food[]
+  user_preferences UserPreference[]
+
+  locals Local[] @relation("LocalCategories")
+
+  @@index([name])
 }
 
+model Food {
+  id   String  @id @default(cuid()) @map("id")
+  slug String?
+
+  local_id    String
+  category_id Int?
+
+  name        String
+  description String?
+
+  price Float
+
+  image_url String?
+  available Boolean @default(true)
+
+  votes_up   Int @default(0)
+  votes_down Int @default(0)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  local    Local         @relation(fields: [local_id], references: [id])
+  category FoodCategory? @relation(fields: [category_id], references: [id])
+
+  order_items OrderItem[]
+  promotions  Promotion[]
+
+  @@index([local_id])
+  @@index([name])
+  @@index([category_id])
+}
+
+model Promotion {
+  id String @id @default(cuid())
+
+  local_id String
+  food_id  String?
+
+  title       String
+  description String?
+
+  discount_pct Float?
+
+  starts_at DateTime?
+  ends_at   DateTime?
+
+  active Boolean @default(true)
+
+  local Local @relation(fields: [local_id], references: [id])
+  food  Food? @relation(fields: [food_id], references: [id])
+
+  created_at DateTime @default(now())
+
+  @@index([discount_pct])
+}
+
+/**
+ * model Coupon {
+ * id   String @id @default(cuid())
+ * code String @unique
+ * local_id String?
+ * user_id  String?
+ * discount_pct   Float?
+ * discount_value Float?
+ * max_uses   Int?
+ * used_count Int  @default(0)
+ * expires_at DateTime?
+ * active Boolean @default(true)
+ * local Local? @relation(fields: [local_id], references: [id])
+ * user  User?  @relation(fields: [user_id], references: [id])
+ * created_at DateTime @default(now())
+ * }
+ */
+
+// ========================================================
+// MODELO DE VOTOS
+// ========================================================
+model Vote {
+  id           Int         @id @default(autoincrement())
+  user         User        @relation("UserVotes", fields: [user_id], references: [id])
+  user_id      String
+  content_type ContentType
+  content_id   String
+  vote_type    VoteType
+  created_at   DateTime    @default(now())
+  updated_at   DateTime    @updatedAt
+
+  //food Food? @relation("FoodVotes", fields: [content_id], references: [id])
+
+  @@unique([user_id, content_type, content_id])
+}
+
+// ========================================================
+// MODELO DE COMUNIDADES
+// ========================================================
 model Community {
   id            String     @id @default(cuid()) @map("id")
   slug          String     @unique
@@ -469,7 +468,19 @@ model Community {
   members CommunityMember[]
   posts   Post[]
 
-  tags CommunityTag[] @relation("CommunityTags") // many-to-many
+  tags CommunityTag[] @relation("CommunityTags")
+
+  @@index([name])
+}
+
+model TagCategory {
+  id          Int     @id @default(autoincrement())
+  slug        String  @unique
+  name        String  @unique
+  description String?
+  icon_url    String?
+
+  communityTags CommunityTag[]
 }
 
 model CommunityTag {
@@ -489,7 +500,7 @@ model CommunityMember {
   user_id                String
   community              Community             @relation(fields: [community_id], references: [id])
   community_id           String
-  receives_notifications NotificationFrequency @default(RARE)
+  receives_notifications NotificationFrequency @default(ALWAYS)
   joined_at              DateTime              @default(now())
   updated_at             DateTime              @updatedAt
   is_moderator           Boolean               @default(false)
@@ -498,6 +509,9 @@ model CommunityMember {
   @@index([community_id])
 }
 
+// ========================================================
+// MODELO DE RECETAS
+// ========================================================
 model Recipe {
   id          String @id @default(cuid()) @map("id")
   slug        String
@@ -541,6 +555,10 @@ model RecipeStep {
 
   @@unique([recipe_id, step_number])
 }
+
+// ========================================================
+// MODELO DE POSTS
+// ========================================================
 
 model Post {
   id             String    @id @default(cuid()) @map("id")
@@ -589,6 +607,9 @@ model PostComment {
   @@index([parent_comment_id])
 }
 
+// ========================================================
+// MODELO DE UNIDADES DE MEDIDA E INGREDIENTES
+// ========================================================
 model UnitOfMeasure {
   id                 Int                @id @default(autoincrement())
   name               String             @unique
@@ -603,6 +624,9 @@ model Ingredient {
   recipe_ingredients RecipeIngredient[]
 }
 
+// ========================================================
+// MODELO DE PEDIDOS Y SUS DETALLES
+// ========================================================
 model Order {
   id             String      @id @default(cuid()) @map("id")
   user           User        @relation(fields: [user_id], references: [id])
@@ -632,6 +656,9 @@ model OrderItem {
   notes      String?
 }
 
+// ========================================================
+// MODELO DE SUSCRIPCIONES
+// ========================================================
 model Subscription {
   id String @id @default(cuid()) @map("id")
 

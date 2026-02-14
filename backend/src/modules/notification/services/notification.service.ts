@@ -30,7 +30,7 @@ export class NotificationService {
     community_id: string,
     user_id: string,
     type: string,
-    value: "RARE" | "NONE" | "FREQUENT"
+    value: "ALWAYS" | "NONE",
   ) {
     try {
       if (type === "member") {

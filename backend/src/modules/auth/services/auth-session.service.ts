@@ -1,12 +1,11 @@
 import { UserSessionData } from "../../../shared/interfaces/user.dto";
-import SessionService from "../../../services/session.service";
+import SessionService from "../../../core/services/session.service";
 
 export class AuthSessionService {
   private readonly SESSION_PREFIX = "session:";
-  private readonly REFRESH_TOKEN_PREFIX = "refresh:";
-  private readonly USER_SESSION_PREFIX = "user-session:";
 
   private static instance: AuthSessionService;
+
   private sessionService: SessionService;
 
   private constructor() {
@@ -20,205 +19,165 @@ export class AuthSessionService {
     return AuthSessionService.instance;
   }
 
-  // ==================================
-  // GESTIÓN DE SESIONES
-  // ==================================
+  // 1. CREAR SESIÓN
   async createSession(
-    userData: Omit<UserSessionData, "loginAt" | "lastActivity">,
-    ttlSeconds: number,
-    device: "web" | "mobile"
+    u: Omit<UserSessionData, "loginAt" | "lastActivity">,
+    d: string, // Device ID
+    ttl: number,
   ): Promise<string> {
-    const userKey = `${this.USER_SESSION_PREFIX}${userData.id}:${device}`;
+    const userKey = `user-sessions:${u.id}`;
 
-    // 1️⃣ ¿Ya hay sesión activa?
-    const existingSessionId = await this.sessionService.get(userKey);
-    if (existingSessionId) {
-      // Actualizar TTL de la sesión existente
-      const sessionKey = `${this.SESSION_PREFIX}${existingSessionId}`;
-      const existingTtl = await this.sessionService.getTtl(sessionKey);
+    // 1. Verificar si ya existe
+    const existing = await this.sessionService.hGet(userKey, d);
 
-      // Solo actualizar si aún existe
-      if (existingTtl > 0) {
-        await this.sessionService.expire(sessionKey, ttlSeconds);
-        await this.sessionService.expire(userKey, ttlSeconds);
-        console.log(`♻️ Sesión existente reutilizada: ${existingSessionId}`);
-        return existingSessionId;
+    if (existing) {
+      const sessionKey = `${this.SESSION_PREFIX}${existing}`;
+
+      const isValid = await this.sessionService.get(sessionKey);
+
+      if (isValid) {
+        console.log("Sesión existente válida encontrada:", existing);
+
+        await this.sessionService.expire(sessionKey, ttl);
+
+        await this.sessionService.expire(userKey, ttl);
+        return existing;
+      } else {
+        console.log(
+          "Sesión existente pero inválida encontrada, eliminando índice:",
+          existing,
+        );
+        await this.sessionService.hDel(userKey, d);
       }
     }
 
-    // 2️⃣ Crear nueva sesión
     const sessionId = this.sessionService.generateUniqueId();
-
-    const sessionData: UserSessionData = {
-      ...userData,
-      loginAt: new Date(),
-      lastActivity: new Date(),
-    };
 
     const sessionKey = `${this.SESSION_PREFIX}${sessionId}`;
 
-    await this.sessionService.set(
-      sessionKey,
-      JSON.stringify(sessionData),
-      ttlSeconds
-    );
+    const sessionData: UserSessionData = {
+      ...u,
+      loginAt: new Date(),
+      lastActivity: new Date(),
+      deviceId: d,
+    };
 
-    // 3️⃣ Guardar índice usuario -> sesión
-    await this.sessionService.set(userKey, sessionId, ttlSeconds);
+    // 2. Guardar en Redis (Guardamos la sesión con un TTL (en segundos))
+    await this.sessionService.set(sessionKey, JSON.stringify(sessionData), ttl);
 
-    console.log(
-      `✅ Sesión creada: ${sessionId} (TTL: ${ttlSeconds}s, device: ${device})`
-    );
+    // 3. Guardar índice para el usuario junto con el hash
+    await this.sessionService.hSet(userKey, d, sessionId);
+
+    // Opcional: Actualizar expiración al mapa del usuario también para que no sea eterno
+    await this.sessionService.expire(userKey, ttl);
+
     return sessionId;
   }
 
+  // 2. OBTENER SESIÓN
   async getSession(
-    sessionId: string,
-    isMobile: boolean
+    s: string, // Session ID
+    d: string, // Device ID
+    r: boolean,
   ): Promise<UserSessionData | null> {
     try {
-      const sessionKey = `${this.SESSION_PREFIX}${sessionId}`;
-      const data = await this.sessionService.get(sessionKey);
+      const sessionKey = `${this.SESSION_PREFIX}${s}`;
 
-      if (!data) {
-        console.warn(`⚠️ Sesión no encontrada: ${sessionId}`);
-        return null;
-      }
+      let ttl = 24 * 60 * 60;
+
+      if (r) ttl = 14 * 24 * 60 * 60;
+      else ttl = 24 * 60 * 60;
+
+      // Obtener datos crudos
+      const data = await this.sessionService.get(sessionKey);
+      if (!data) return null;
 
       const sessionData: UserSessionData = JSON.parse(data);
 
-      // Actualizar última actividad
-      sessionData.lastActivity = new Date();
-      const ttl = await this.sessionService.getTtl(sessionKey);
-
-      if (ttl > 0) {
-        await this.sessionService.set(
-          sessionKey,
-          JSON.stringify(sessionData),
-          ttl
-        );
+      if (sessionData.deviceId !== d) {
+        // Eliminar sesión comprometida
+        await this.sessionService.delete(sessionKey);
+        return null;
       }
+
+      // Actualizar actividad
+      sessionData.lastActivity = new Date();
+
+      // Actualizar datos
+      await this.sessionService.set(
+        sessionKey,
+        JSON.stringify(sessionData),
+        ttl,
+      );
+
+      // Renovar el TTL del índice y session
+      await this.sessionService.expire(`user-sessions:${sessionData.id}`, ttl);
+
+      await this.sessionService.expire(sessionKey, ttl);
 
       return sessionData;
     } catch (error) {
-      console.error("❌ Error obteniendo sesión:", error);
+      console.error("Error obteniendo sesión:", error);
       return null;
     }
   }
 
-  async deleteSession(sessionId: string): Promise<void> {
+  // 3. ELIMINAR SESIÓN
+  async deleteSession(
+    s: string, // Session ID
+  ): Promise<void> {
     try {
-      const sessionKey = `${this.SESSION_PREFIX}${sessionId}`;
+      const sessionKey = `${this.SESSION_PREFIX}${s}`;
 
-      // Primero obtener los datos de la sesión para limpiar el índice
+      // 1. Obtener datos de sesión para eliminar índice
       const data = await this.sessionService.get(sessionKey);
 
       if (data) {
         const sessionData: UserSessionData = JSON.parse(data);
+        const { id, deviceId } = sessionData;
 
-        // Limpiar índices de usuario para ambos dispositivos
-        const webUserKey = `${this.USER_SESSION_PREFIX}${sessionData.id}:web`;
-        const mobileUserKey = `${this.USER_SESSION_PREFIX}${sessionData.id}:mobile`;
-
-        await this.sessionService.delete(webUserKey);
-        await this.sessionService.delete(mobileUserKey);
-      }
-
-      // Eliminar todos los refresh tokens asociados a esta sesión
-      await this.revokeAllRefreshTokens(sessionId);
-
-      // Eliminar la sesión
-      await this.sessionService.delete(sessionKey);
-
-      console.log(`🗑️ Sesión eliminada: ${sessionId}`);
-    } catch (error) {
-      console.error("❌ Error eliminando sesión:", error);
-    }
-  }
-
-  async deleteAllUserSessions(userId: string): Promise<void> {
-    try {
-      const pattern = `${this.SESSION_PREFIX}*`;
-      const keys = await this.sessionService.keys(pattern);
-
-      for (const key of keys) {
-        const data = await this.sessionService.get(key);
-        if (data) {
-          const sessionData: UserSessionData = JSON.parse(data);
-          if (sessionData.id === userId) {
-            const sessionId = key.replace(this.SESSION_PREFIX, "");
-            await this.deleteSession(sessionId);
-          }
+        if (id && deviceId) {
+          const userKey = `user-sessions:${id}`;
+          await this.sessionService.hDel(userKey, deviceId);
+          console.log(`Índice eliminado para User ${id}, Device ${deviceId}`);
         }
       }
 
-      console.log(`🗑️ Todas las sesiones del usuario ${userId} eliminadas`);
-    } catch (error) {
-      console.error("❌ Error eliminando sesiones del usuario:", error);
+      // 2. Borrar la data de la sesión
+      await this.sessionService.delete(sessionKey);
+
+      console.log(`Sesión eliminada: ${sessionKey}`);
+    } catch (e) {
+      console.error("Error eliminando sesión:", e);
     }
   }
 
-  // ==================================
-  // GESTIÓN DE REFRESH TOKENS
-  // ==================================
-  async storeRefreshToken(
-    sessionId: string,
-    hashedJti: string,
-    ttlSeconds: number
-  ): Promise<void> {
+  // 4. REVOCA TODAS LAS SESIONES DE UN USUARIO
+  async revokeAllUserSessions(userId: string): Promise<void> {
     try {
-      const key = `${this.REFRESH_TOKEN_PREFIX}${sessionId}:${hashedJti}`;
-      await this.sessionService.set(key, "valid", ttlSeconds);
-      console.log(`🔄 Refresh token almacenado para sesión: ${sessionId}`);
-    } catch (error) {
-      console.error("❌ Error almacenando refresh token:", error);
-      throw error;
-    }
-  }
+      const userIndexKey = `user-sessions:${userId}`;
 
-  async isRefreshTokenValid(
-    sessionId: string,
-    hashedJti: string
-  ): Promise<boolean> {
-    try {
-      const key = `${this.REFRESH_TOKEN_PREFIX}${sessionId}:${hashedJti}`;
-      const value = await this.sessionService.get(key);
-      return value === "valid";
-    } catch (error) {
-      console.error("❌ Error verificando refresh token:", error);
-      return false;
-    }
-  }
+      // 1. Obtener todos los sessionIds activos de este usuario
+      const allSes = await this.sessionService.hGetAll(userIndexKey);
 
-  async revokeRefreshToken(
-    sessionId: string,
-    hashedJti: string
-  ): Promise<void> {
-    try {
-      const key = `${this.REFRESH_TOKEN_PREFIX}${sessionId}:${hashedJti}`;
-      await this.sessionService.delete(key);
-      console.log(`🗑️ Refresh token revocado: ${hashedJti.substring(0, 8)}...`);
-    } catch (error) {
-      console.error("❌ Error revocando refresh token:", error);
-    }
-  }
+      if (allSes) {
+        const sessionIds = Object.values(allSes);
 
-  async revokeAllRefreshTokens(sessionId: string): Promise<void> {
-    try {
-      const pattern = `${this.REFRESH_TOKEN_PREFIX}${sessionId}:*`;
-      const keys = await this.sessionService.keys(pattern);
-
-      for (const key of keys) {
-        await this.sessionService.delete(key);
-      }
-
-      if (keys.length > 0) {
-        console.log(
-          `🗑️ ${keys.length} refresh tokens revocados para sesión ${sessionId}`
+        // 2. Borrar cada sesión individualmente
+        await Promise.all(
+          sessionIds.map((sid) =>
+            this.sessionService.delete(`${this.SESSION_PREFIX}${sid}`),
+          ),
         );
+        console.log(`Eliminadas ${sessionIds.length} sesiones activas.`);
       }
-    } catch (error) {
-      console.error("❌ Error revocando refresh tokens:", error);
+
+      // 3. Borrar el índice completo del usuario
+      await this.sessionService.delete(userIndexKey);
+
+      console.log(`Revocación total completada para usuario ${userId}`);
+    } catch (e) {
+      console.error("Error en revocación masiva:", e);
     }
   }
 }

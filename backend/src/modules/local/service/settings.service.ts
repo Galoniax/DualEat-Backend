@@ -54,7 +54,7 @@ export class SettingsService {
           email: data.email,
           image_url: data.image_url,
           categorias_menu: data.categorias_menu,
-          // ✅ AÑADIDOS LOS CAMPOS NUEVOS
+
           latitude: data.latitude,
           longitude: data.longitude,
         },

@@ -17,13 +17,11 @@ import {
   Local,
   Community,
   CommunityTags,
-  TagCategory,
   Recipe,
   Post,
   Chat,
   Notification,
   Vote,
-  Onboarding,
   Admin,
   Users,
 } from "./index";
@@ -52,7 +50,7 @@ async function initializeApp() {
     console.log("Redis OK - Aplicación iniciando...");
     initializeSocket(httpServer);
   } catch (error) {
-    console.error("❌ No se pudo conectar a Redis:", error);
+    console.error("No se pudo conectar a Redis:", error);
     process.exit(1);
   }
 }
@@ -60,6 +58,8 @@ async function initializeApp() {
 initializeApp();
 
 const allowedOrigins = [process.env.FRONTEND_URL, process.env.MOBILE_URL];
+
+console.log("Allowed origins:", allowedOrigins);
 
 const validOrigins = allowedOrigins.filter(
   (origin): origin is string => typeof origin === "string"
@@ -96,7 +96,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 días
+      maxAge: 14 * 24 * 60 * 60 * 1000, // 14 días
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
     },
@@ -117,15 +117,12 @@ app.use(`${API_PREFIX}/contact`, Contact);
 
 // Módulo de Comunidad
 app.use(`${API_PREFIX}/community`, Community);
-app.use(`${API_PREFIX}/tags-categories`, TagCategory);
 app.use(`${API_PREFIX}/community-tags`, CommunityTags);
 app.use(`${API_PREFIX}/recipe`, Recipe);
 app.use(`${API_PREFIX}/post`, Post);
 app.use(`${API_PREFIX}/notification`, Notification);
 app.use(`${API_PREFIX}/vote`, Vote);
 app.use(`${API_PREFIX}/chat`, Chat);
-
-app.use(`${API_PREFIX}/onboarding`, Onboarding); // Revisar esto + admin
 
 //Admin
 app.use(`${API_PREFIX}/admin`, Admin);

@@ -10,14 +10,10 @@ const redisConfig = {
 
 export const redisClient = new Redis(redisConfig);
 
-redisClient.on('connect', () => {
-  console.log("✅ Redis conectado a", redisConfig.host);
-});
+redisClient.on('connect', () => {});
 
-redisClient.on('ready', () => {
-  console.log('✅ Redis listo para usar');
-});
+redisClient.on('ready', () => {});
 
 redisClient.on('error', (err) => {
-  console.warn('⚠️ Redis error:', err.message);
+  console.warn('Redis error:', err.message);
 });

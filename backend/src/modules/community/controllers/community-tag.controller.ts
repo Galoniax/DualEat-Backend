@@ -1,10 +1,37 @@
 import { Request, Response } from "express";
 import { CommunityTagService } from "../services/community-tag.service";
+import { TagCategoryService } from "../services/tag-category.service";
 
 export class CommunityTagController {
-  constructor(private communityTagService: CommunityTagService) {}
+  constructor(
+    private communityTagService: CommunityTagService,
+    private tagCategoryService: TagCategoryService,
+  ) {}
 
-  /** CREAR ETIQUETA */
+  // =========================================================
+  // OBTENER TODAS LAS CATEGORIAS DE ETIQUETAS
+  // =========================================================
+  getAllCategories = async (req: Request, res: Response) => {
+    try {
+      const tagCategories = await this.tagCategoryService.getAllTagCategories();
+
+      if (tagCategories.length === 0)
+        return res
+          .status(404)
+          .json({ success: false, message: "No se encontraron categorias" });
+
+      return res.status(200).json({ success: true, data: tagCategories });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Error al obtener categorias de tags",
+      });
+    }
+  };
+
+  // =========================================================
+  // CREAR ETIQUETA (POST)
+  // =========================================================
   create = async (req: Request, res: Response) => {
     const { data } = req.body;
     try {
@@ -17,19 +44,29 @@ export class CommunityTagController {
     }
   };
 
-  /** OBTENER TODAS LAS ETIQUETAS */
+  // =========================================================
+  // OBTENER TODAS LAS ETIQUETAS
+  // =========================================================
   getAll = async (req: Request, res: Response) => {
     try {
       const tags = await this.communityTagService.getAllCommunityTags();
-      res.status(200).json({ success: true, data: tags });
-    } catch (error) {
+
+      if (tags.length === 0)
+        return res
+          .status(404)
+          .json({ success: false, message: "No se encontraron etiquetas" });
+
+      return res.status(200).json({ success: true, data: tags });
+    } catch (e) {
       res
         .status(500)
         .json({ success: false, message: "Error al obtener las etiquetas" });
     }
   };
 
-  /** OBTENER ETIQUETA POR ID DE CATEGORÍA */
+  // =========================================================
+  // OBTENER ETIQUETA POR ID
+  // =========================================================
   getByCategoryId = async (req: Request, res: Response) => {
     const { id } = req.query;
     try {
@@ -48,13 +85,15 @@ export class CommunityTagController {
     }
   };
 
-  /** ACTUALIZAR ETIQUETA */
+  // =========================================================
+  // ACTUALIZAR ETIQUETA
+  // =========================================================
   update = async (req: Request, res: Response) => {
     const { id, data } = req.body;
     try {
       const updatedTag = await this.communityTagService.updateCommunityTag(
         id,
-        data
+        data,
       );
       if (updatedTag) {
         res.status(200).json({ success: true, data: updatedTag });
@@ -70,7 +109,9 @@ export class CommunityTagController {
     }
   };
 
-  /** ELIMINAR ETIQUETA */
+  // =========================================================
+  // ELIMINAR ETIQUETA
+  // =========================================================
   delete = async (req: Request, res: Response) => {
     const { id } = req.body;
     try {

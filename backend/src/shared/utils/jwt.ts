@@ -14,7 +14,7 @@ import AuthSessionService from "../../modules/auth/services/auth-session.service
 const authSessionService = AuthSessionService.getInstance();
 
 // ==================================
-// Funciones auxiliares
+// Funciones auxiliares para el JWT
 // ==================================
 function hashUserId(userId: string): string {
   return crypto
@@ -40,103 +40,42 @@ function encodeProvider(provider: string): string {
   return providerMap[provider] || "l";
 }
 
-export function hashTokenId(jti: string): string {
-  return crypto
-    .createHash("sha256")
-    .update(jti + ":" + SECRET_KEY)
-    .digest("hex");
-}
-
 // ==================================
-// ACCESS TOKEN (corta duración)
+// Creación de tokens seguros y temporales (JWT)
 // ==================================
-export async function createAccessToken(
-  userData: UserSessionData,
-  sessionId: string,
-  isMobile: boolean
+export async function createSecureToken(
+  u: UserSessionData, // Datos del usuario
+  r: boolean, // Remember me
+  d: string, // Device ID
 ): Promise<string> {
+  let ttlSeconds = 24 * 60 * 60;
+
+  if (r) {
+    ttlSeconds = 14 * 24 * 60 * 60;
+  } else {
+    ttlSeconds = 24 * 60 * 60;
+  }
+
+  // Crear sesión en Redis (Con el nuevo TTL)
+  const sessionId = await authSessionService.createSession(u, d, ttlSeconds);
+
   const payload: SecureTokenPayload = {
-    sub: hashUserId(userData.id),
-    rol: encodeRole(userData.role),
-    prv: encodeProvider(userData.provider),
-    mob: isMobile,
+    sub: hashUserId(u.id),
+    rol: encodeRole(u.role),
+    prv: encodeProvider(u.provider),
+    rem: r,
+    dev: d,
     ses: sessionId,
     typ: "access",
   };
 
-  // Access token de CORTA duración (15 minutos)
   return jwt.sign(payload, SECRET_KEY, {
     algorithm: "HS256",
-    expiresIn: "15m",
+    expiresIn: r ? "14d" : "1d",
     jwtid: crypto.randomUUID(),
   });
 }
 
-// ==================================
-// REFRESH TOKEN (larga duración)
-// ==================================
-export async function createRefreshToken(
-  sessionId: string,
-  isMobile: boolean
-): Promise<string> {
-  const jti = crypto.randomUUID();
-
-  const payload = {
-    ses: sessionId,
-    mob: isMobile,
-    typ: "refresh",
-    jti,
-  };
-
-  const expiresIn = isMobile ? "30d" : "7d";
-
-  // Guardar el jti hasheado en Redis para poder revocarlo
-  const hashedJti = hashTokenId(jti);
-  const ttlSeconds = isMobile ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
-
-  await authSessionService.storeRefreshToken(sessionId, hashedJti, ttlSeconds);
-
-  return jwt.sign(payload, SECRET_KEY, {
-    algorithm: "HS256",
-    expiresIn,
-    jwtid: jti,
-  });
-}
-
-// ==================================
-// CREAR PAR DE TOKENS (Access + Refresh)
-// ==================================
-export async function createTokenPair(
-  userData: UserSessionData,
-  rememberMe: boolean,
-  isMobile: boolean
-): Promise<{ accessToken: string; refreshToken: string; sessionId: string }> {
-  // Determinar TTL de la sesión basado en el dispositivo
-  const ttlSeconds = isMobile
-    ? 30 * 24 * 60 * 60 // 30 días para mobile
-    : rememberMe
-      ? 7 * 24 * 60 * 60 // 7 días si recordar
-      : 24 * 60 * 60; // 1 día por defecto
-
-  const device = isMobile ? "mobile" : "web";
-
-  // Crear sesión en Redis
-  const sessionId = await authSessionService.createSession(
-    userData,
-    ttlSeconds,
-    device
-  );
-
-  // Crear ambos tokens
-  const accessToken = await createAccessToken(userData, sessionId, isMobile);
-  const refreshToken = await createRefreshToken(sessionId, isMobile);
-
-  return { accessToken, refreshToken, sessionId };
-}
-
-// ==================================
-// TOKENS TEMPORALES (onboarding)
-// ==================================
 export function createTempToken(payload: TempTokenPayload): string {
   return jwt.sign(payload, SECRET_KEY, {
     algorithm: "HS256",
@@ -146,23 +85,24 @@ export function createTempToken(payload: TempTokenPayload): string {
 }
 
 // ==================================
-// VERIFICACIÓN DE TOKENS
+// Verificación de tokens
 // ==================================
-export function verifyAccessToken(token: string): SecureTokenPayload {
-  return jwt.verify(token, SECRET_KEY) as SecureTokenPayload;
+export function verifyAccessToken(
+  t: string, // Token JWT
+) {
+  return jwt.verify(t, SECRET_KEY) as any;
 }
 
-export function verifyRefreshToken(token: string): any {
-  const payload = jwt.verify(token, SECRET_KEY) as any;
+export function verifyTempToken(
+  t: string, // Token JWT
+): TempTokenPayload {
+  const payload = jwt.verify(t, SECRET_KEY) as TempTokenPayload;
 
-  // Verificar que es un refresh token
-  if (payload.typ !== "refresh") {
-    throw new Error("Token inválido: no es un refresh token");
+  if (
+    payload.step !== "incomplete_registration" &&
+    payload.step !== "incomplete_oauth_registration"
+  ) {
+    throw new Error("Token temporal no válido");
   }
-
   return payload;
-}
-
-export function verifyTempToken(token: string): TempTokenPayload {
-  return jwt.verify(token, SECRET_KEY) as TempTokenPayload;
 }

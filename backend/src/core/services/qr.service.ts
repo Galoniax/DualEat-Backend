@@ -1,9 +1,8 @@
-import { prisma } from "../../core/database/prisma/prisma";
+import { prisma } from "../database/prisma/prisma";
 import qrcode from "qrcode";
-import { QrResponse } from "../interfaces/qr.interfaces";
+import { QrResponse } from "../../shared/interfaces/qr.interfaces";
 
 export class QrService {
-
   /** GENERATE QR FOR LOCAL */
   async generateQrForLocal(localId: string): Promise<QrResponse> {
     // 1. Buscar el local en la base de datos para validar su existencia y obtener su nombre.

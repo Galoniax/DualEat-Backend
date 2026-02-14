@@ -10,7 +10,7 @@ import { PasswordController } from "../controllers/password.controller";
 import { generalLimiter } from "../../../core/middlewares/rateLimiter";
 import { isAuthenticated } from "../../../core/middlewares/isAuthenticated";
 
-import { createTempToken, createTokenPair } from "../../../shared/utils/jwt";
+import { createTempToken, createSecureToken } from "../../../shared/utils/jwt";
 import {
   UserSessionData,
   TempTokenPayload,
@@ -24,57 +24,31 @@ const controller = new AuthController(service);
 const pservice = new PasswordService();
 const pcontroller = new PasswordController(pservice);
 
-// --- RUTAS DE AUTENTICACIÓN ---
-
-// Login con email/password
-router.post("/login", generalLimiter, controller.login.bind(controller));
-
-// Registro paso 1
-router.post("/register", generalLimiter, controller.register.bind(controller));
-
-// Completar perfil (paso 2)
-router.post(
-  "/complete-profile",
-  generalLimiter,
-  controller.completeProfile.bind(controller)
-);
-
-// Endpoint para refrescar tokens
-router.post("/refresh", generalLimiter, controller.refresh.bind(controller));
-
-// Logout
-router.post("/logout", controller.logout.bind(controller));
-
-// Obtener usuario actual
-router.get("/me", isAuthenticated, (req, res) => {
-  res.json({
-    success: true,
-    user: req.user,
-  });
-});
-
-// --- GOOGLE OAUTH ---
+// 0. RUTAS DE LOGIN CON GOOGLE
+// =========================================
 router.get("/google", (req, res, next) => {
-  const platform = req.query.platform as string;
-  const isMobile = platform === "mobile";
+  const deviceID = (req.query.deviceId as string) || "unknown_device";
+  const platform = (req.query.platform as string) || "web";
 
-  console.log(
-    isMobile
-      ? "Iniciando Google login desde móvil"
-      : "Iniciando Google login desde web"
-  );
+  console.log(`Iniciando Google Login (${platform}) - Device: ${deviceID}`);
 
-  const state = JSON.stringify({
-    platform: isMobile ? "mobile" : "web",
-  });
+  const stateData = {
+    platform,
+    deviceID,
+  };
+
+  // Codificar a Base64 (URL Safe)
+  const stateBase64 = Buffer.from(JSON.stringify(stateData)).toString("base64");
 
   passport.authenticate("google", {
     scope: ["profile", "email"],
     prompt: "select_account",
-    state: state,
+    state: stateBase64,
   })(req, res, next);
 });
 
+// CALLBACK DE GOOGLE
+// =========================================
 router.get(
   "/google/callback",
   passport.authenticate("google", {
@@ -82,18 +56,33 @@ router.get(
   }),
   async (req, res) => {
     const user = req.user as any;
+
     const stateParam = req.query.state as string;
-    const state = stateParam ? JSON.parse(stateParam) : { platform: "web" };
+    let state = { platform: "web", deviceID: "unknown_device" };
+
+    if (stateParam) {
+      try {
+        const jsonString = Buffer.from(stateParam, "base64").toString("utf-8");
+        state = JSON.parse(jsonString);
+      } catch (e) {
+        console.error("Error parseando state de Google:", e);
+      }
+    }
+
+    const deviceID = state.deviceID || "unknown_device";
     const isMobile = state.platform === "mobile";
 
-    // Usuario nuevo -> onboarding
+    console.log(
+      `Callback Google recibido. User: ${user.email}, Device: ${deviceID}`,
+    );
+
+    // ============ Lógica de Nuevo Usuario =============
     if (user && !user.isExisting) {
       const tempTokenPayload: TempTokenPayload = {
         email: user.email,
-        name: user.name,
         avatar_url: user.avatar_url,
-        isMobile,
         provider: user.provider,
+        dev: deviceID,
         step: "incomplete_oauth_registration",
       };
       const tempToken = createTempToken(tempTokenPayload);
@@ -102,13 +91,10 @@ router.get(
         return res.redirect(`dualeat://callback?tempToken=${tempToken}`);
       } else {
         return res.redirect(
-          `${process.env.FRONTEND_URL}/onboarding?tempToken=${tempToken}`
+          `${process.env.FRONTEND_URL}/onboarding?tempToken=${tempToken}`,
         );
       }
-    }
-
-    // Usuario existente -> login
-    if (user && user.isExisting) {
+    } else if (user && user.isExisting) {
       const userData: UserSessionData = {
         id: user.id,
         name: user.name,
@@ -121,69 +107,83 @@ router.get(
         subscription_status: user.subscription_status,
         trial_ends_at: user.trial_ends_at,
         avatar_url: user.avatar_url,
+
         loginAt: new Date(),
         lastActivity: new Date(),
+        deviceId: deviceID,
       };
 
-      const { accessToken, refreshToken } = await createTokenPair(
-        userData,
-        true,
-        isMobile
-      );
+      // ============ Lógica de autenticación =============
+      const accessToken = await createSecureToken(userData, true, deviceID);
 
+      res.cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: isMobile ? 14 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
+      });
+
+      // ============ Lógica de redirección =============
       if (isMobile) {
-        // Mobile: redirigir con tokens en URL
-        return res.redirect(
-          `dualeat://callback?accessToken=${accessToken}&refreshToken=${refreshToken}`
-        );
+        console.log("Redirigiendo a dualeat://callback?token=" + accessToken);
+        return res.redirect(`dualeat://callback?token=${accessToken}`);
       } else {
-        // Web: establecer cookies
-        res.cookie("accessToken", accessToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "strict",
-          path: "/",
-          maxAge: 15 * 60 * 1000, // 15 minutos
-        });
-
-        res.cookie("refreshToken", refreshToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "strict",
-          path: "/api/auth/refresh",
-          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
-        });
-
         if (user.isBusiness) {
           return res.redirect(`${process.env.FRONTEND_URL}/business/dashboard`);
         } else {
           return res.redirect(`${process.env.FRONTEND_URL}/feed`);
         }
       }
+    } else {
+      console.log("No se recibió usuario en req.user");
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/login?error=auth_failed`,
+      );
     }
-
-    // Fallback
-    return res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
-  }
+  },
 );
 
-// --- PASSWORD RESET ---
+// 1. RUTAS DE LOGIN/REGISTRO CON EMAIL Y CONTRASEÑA
+// =========================================
+router.post("/login", generalLimiter, controller.login.bind(controller));
+
+router.post("/register", generalLimiter, controller.register.bind(controller));
+
+router.post(
+  "/complete-profile",
+  generalLimiter,
+  controller.completeProfile.bind(controller),
+);
+
+// 2. RUTAS DE RESET DE CONTRASEÑA
+// =========================================
 router.post(
   "/password_reset",
   generalLimiter,
-  pcontroller.requestReset.bind(pcontroller)
+  pcontroller.requestReset.bind(pcontroller),
 );
 
 router.post(
   "/password_reset/validate-code",
   generalLimiter,
-  pcontroller.validateCode.bind(pcontroller)
+  pcontroller.validateCode.bind(pcontroller),
 );
 
 router.post(
   "/password_reset/reset",
   generalLimiter,
-  pcontroller.reset.bind(pcontroller)
+  pcontroller.reset.bind(pcontroller),
 );
+
+// 3. RUTAS DE USUARIO AUTENTICADO
+// =========================================
+router.get("/me", isAuthenticated, (req, res) => {
+  res.json(req.user);
+});
+
+// 4. RUTAS DE LOGOUT
+// =========================================
+router.post("/logout", controller.logout.bind(controller));
 
 export default router;

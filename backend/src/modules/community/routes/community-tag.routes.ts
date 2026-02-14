@@ -4,12 +4,19 @@ import { CommunityTagController } from "../controllers/community-tag.controller"
 import { isAuthenticated } from "../../../core/middlewares/isAuthenticated";
 import { generalLimiter } from "../../../core/middlewares/rateLimiter";
 import { CommunityTagService } from "../services/community-tag.service";
+import { TagCategoryService } from "../services/tag-category.service";
 
 const router = Router();
 
 const service = new CommunityTagService();
-const controller = new CommunityTagController(service);
+const tagCatService = new TagCategoryService();
 
+const controller = new CommunityTagController(service, tagCatService);
+
+
+// 0. Obtener todas las categorias de etiquetas
+// ========================================================= 
+router.get("/categories", controller.getAllCategories.bind(controller));
 
 // 1. Obtener todas las etiquetas
 // ========================================================= 

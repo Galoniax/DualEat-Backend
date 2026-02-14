@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { SettingsService } from "../service/settings.service";
 import { StatisticsService } from "../service/statistics.service";
-import { QrService } from "../../../shared/services/qr.service";
+import { QrService } from "../../../core/services/qr.service";
 
 import { DayOfWeek } from "@prisma/client";
 
@@ -9,11 +9,11 @@ export class BusinessController {
   constructor(
     private settingsService: SettingsService,
     private stadisticsService: StatisticsService,
-    private qrService: QrService
+    private qrService: QrService,
   ) {}
 
   // =========================================================
-  // ⚙️ CONFIGURACIÓN Y HORARIOS
+  // CONFIGURACIÓN Y HORARIOS
   // =========================================================
 
   getSettings = async (req: Request, res: Response) => {
@@ -55,7 +55,7 @@ export class BusinessController {
 
       const updatedSettings = await this.settingsService.updateLocalById(
         localId,
-        data
+        data,
       );
 
       if (!updatedSettings) {
@@ -108,7 +108,7 @@ export class BusinessController {
         (s) =>
           dayOfWeekValues.includes(s.day_of_week) &&
           typeof s.open_time === "string" &&
-          typeof s.close_time === "string"
+          typeof s.close_time === "string",
       );
 
       if (!isValid) {
@@ -122,7 +122,7 @@ export class BusinessController {
       // Llamamos al Service para reemplazar los horarios
       const updatedSchedules = await this.settingsService.updateLocalSchedules(
         localId,
-        schedules
+        schedules,
       );
 
       return res.status(200).json({
@@ -139,7 +139,7 @@ export class BusinessController {
   };
 
   // =========================================================
-  // 📈 ESTADÍSTICAS (Dashboard)
+  // ESTADÍSTICAS (Dashboard)
   // =========================================================
   getTopFoods = async (req: Request, res: Response) => {
     try {
@@ -153,7 +153,7 @@ export class BusinessController {
       const top_foods = await this.stadisticsService.getTopFoods(
         localId,
         from as string,
-        to as string
+        to as string,
       );
 
       return res.json({
@@ -173,12 +173,10 @@ export class BusinessController {
 
       // Se requieren las fechas de inicio y fin para este cálculo
       if (!from || !to || typeof localId !== "string" || !localId) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "Parámetros inválidos. Se requiere el ID del local, 'from' y 'to'.",
-          });
+        return res.status(400).json({
+          error:
+            "Parámetros inválidos. Se requiere el ID del local, 'from' y 'to'.",
+        });
       }
 
       // Llamada al nuevo método del servicio
@@ -186,7 +184,7 @@ export class BusinessController {
         await this.stadisticsService.getMonthlyLocalEarnings(
           localId,
           from as string,
-          to as string
+          to as string,
         );
 
       return res.json(monthlyEarnings);
@@ -197,7 +195,7 @@ export class BusinessController {
   };
 
   // =========================================================
-  // 🔳 ACTIVOS (QR) 
+  // ACTIVOS (QR)
   // =========================================================
   generateQrCodeController = async (req: Request, res: Response) => {
     try {

@@ -26,23 +26,13 @@ export class PostService {
           not: post.user_id,
         },
         receives_notifications: {
-          in: ["FREQUENT"],
+          in: ["ALWAYS"],
         },
       },
       select: { user_id: true },
     });
 
-    // 2. Obtener miembros con notificaciones RARE (resumen diario)
-    const rareSubscribers = await prisma.communityMember.findMany({
-      where: {
-        community_id: post.community_id,
-        user_id: {
-          not: post.user_id,
-        },
-        receives_notifications: "RARE",
-      },
-      select: { user_id: true },
-    });
+   
 
     // 3. Crear notificaciones en BD para usuarios con notificaciones inmediatas
     if (immediateSubscribers.length > 0) {
@@ -112,12 +102,6 @@ export class PostService {
           socketError
         );
       }
-    }
-
-    if (rareSubscribers.length > 0) {
-      console.log(
-        `[Digest] ${rareSubscribers.length} usuarios RARE recibirán este post en su resumen diario.`
-      );
     }
   }
 

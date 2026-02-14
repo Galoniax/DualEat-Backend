@@ -35,7 +35,7 @@ export class UserService {
           await tx.userPreference.createMany({
             data: userData.foodPreferences.map((foodId) => ({
               user_id: user.id,
-              food_category_id: foodId, // Correcto: usar food_category_id
+              food_category_id: Number(foodId), 
             })),
             skipDuplicates: true,
           });
@@ -46,7 +46,7 @@ export class UserService {
           await tx.userPreference.createMany({
             data: userData.communityPreferences.map((communityId) => ({
               user_id: user.id,
-              community_tag_id: communityId, // Correcto: usar community_tag_id
+              community_tag_id: Number(communityId), 
             })),
             skipDuplicates: true,
           });

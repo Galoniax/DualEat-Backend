@@ -8,13 +8,21 @@ const controller = new FoodCategoryController(service);
 
 const router = Router();
 
-// Ruta GET para obtener las categorías de un local
+
+// 1. RUTA PARA OBTENER TODAS LAS CATEGORÍAS DE COMIDA DE UN LOCAL
+// =========================================
 router.get("/local/:localId", controller.handleGetLocalMenuCategories);
 
-// Ruta POST para crear una categoría de menú para un local
+// 2. RUTAS PARA CATEGORÍAS DE COMIDA (CRUD)
+// =========================================
 router.post("/", controller.handleCreateLocalMenuCategory);
 
-// Ruta DELETE para eliminar una categoría de menú de un local
+// 3. RUTA PARA ELIMINAR UNA CATEGORÍA DE COMIDA
+// =========================================
 router.delete("/:id", controller.handleDeleteLocalMenuCategory);
+
+// 4. RUTA PARA OBTENER TODAS LAS CATEGORÍAS DE COMIDA
+// =========================================
+router.get("/categories", controller.handleGetAllFoodCategories);
 
 export default router;

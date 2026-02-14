@@ -12,7 +12,15 @@ export class FoodCategoryService {
 
   // Obtener todas las categorías de comida
   async getAllFoodCategories() {
-    return prisma.foodCategory.findMany();
+    const categories = await prisma.foodCategory.findMany({
+      orderBy: [{ tipo: "asc" }, { name: "asc" }],
+    });
+
+    if (!categories || categories.length === 0) {
+      throw new Error("No se encontraron categorías de comida.");
+    }
+
+    return categories;
   }
 
   // Crear una nueva categoría de comida
@@ -20,7 +28,7 @@ export class FoodCategoryService {
     name: string,
     tipo: TypesCategory,
     description: string | null,
-    icon_url: string | null
+    icon_url: string | null,
   ) {
     return prisma.foodCategory.create({
       data: { name, tipo, description, icon_url },
@@ -33,7 +41,7 @@ export class FoodCategoryService {
     name: string,
     tipo: TypesCategory,
     description: string | null,
-    icon_url: string | null
+    icon_url: string | null,
   ) {
     return prisma.foodCategory.update({
       where: { id },

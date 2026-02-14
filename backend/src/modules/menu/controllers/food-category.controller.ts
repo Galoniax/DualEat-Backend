@@ -12,9 +12,15 @@ export class FoodCategoryController {
   handleGetAllFoodCategories = async (_req: Request, res: Response) => {
     try {
       const categories = await this.foodCategoryService.getAllFoodCategories();
-      res.status(200).json(categories);
-    } catch (error) {
-      res.status(500).json({ message: "Error fetching categories." });
+
+      if (!categories || categories.length === 0) {
+        return res
+          .status(404)
+          .json({ success: false, message: "No se encontraron categorías de comida." });
+      }
+      res.status(200).json({ success: true, data: categories });
+    } catch (e) {
+      res.status(500).json({ success: false, message: "Error obteniendo categorías." });
     }
   };
 
@@ -30,7 +36,7 @@ export class FoodCategoryController {
         name,
         tipo as TypesCategory,
         description,
-        icon_url
+        icon_url,
       );
       res.status(201).json(newCategory);
     } catch (error) {
@@ -52,7 +58,7 @@ export class FoodCategoryController {
         name,
         tipo as TypesCategory,
         description,
-        icon_url
+        icon_url,
       );
       res.status(200).json(updatedCategory);
     } catch (error) {
