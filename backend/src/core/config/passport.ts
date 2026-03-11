@@ -13,7 +13,7 @@ export function configurePassport() {
   passport.deserializeUser(function (obj: any, done) {
     done(null, obj);
   });
- 
+
   // Estrategia de autenticación con Google
   passport.use(
     new GoogleStrategy(
@@ -27,7 +27,7 @@ export function configurePassport() {
       async (req, accessToken, refreshToken, profile, done) => {
         try {
           if (!profile.emails?.[0]?.value) {
-            return done(new Error("No email found in Google profile"));
+            return done(new Error("Email no encontrado en perfil de Google"));
           }
           const googleUser = {
             googleId: profile.id,
@@ -37,33 +37,25 @@ export function configurePassport() {
             provider: "google",
           };
           const existingUser = await userService.getByEmail(googleUser.email);
+
+          let user;
+
           if (existingUser) {
-            if (
-              googleUser.avatar_url &&
-              existingUser.avatar_url !== googleUser.avatar_url
-            ) {
-              await userService.updateAvatar(
-                existingUser.id,
-                googleUser.avatar_url
-              );
-            }
-            return done(null, {
-              ...existingUser,
-              isExisting: true,
-              isBusiness: existingUser.is_business,
-            });
+            user = existingUser;
           } else {
-            return done(null, {
-              ...googleUser,
-              isExisting: false,
-              isBusiness: false,
-            });
+            user = googleUser;
           }
+
+          return done(null, {
+            ...user,
+            isExisting: !!existingUser,
+            isBusiness: existingUser?.is_business || false,
+          });
         } catch (error) {
           console.error("Error in Google Strategy:", error);
           return done(error as Error);
         }
-      }
-    )
+      },
+    ),
   );
 }

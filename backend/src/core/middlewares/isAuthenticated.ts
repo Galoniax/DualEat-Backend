@@ -47,6 +47,8 @@ export const isAuthenticated = async (
     );
 
     if (!userData) {
+
+      console.log("Sesión expirada");
       return res.status(401).clearCookie("accessToken").json({
         success: false,
         message: "Sesión expirada",
@@ -65,9 +67,13 @@ export const isAuthenticated = async (
 
     // 4. Adjuntar datos de usuario al request
     req.user = userData;
+    
+    // 5. Adjuntar datos de sesión al request
+    req.sessionId = payload.ses;
 
     next();
   } catch (e: any) {
+    console.log("Token inválido o expirado");
     return res.status(401).clearCookie("accessToken").json({
       success: false,
       message: "Token inválido o expirado",

@@ -32,23 +32,25 @@ export class CommunityTagService {
   /** OBTENER TODAS LAS ETIQUETAS */
   async getAllCommunityTags() {
     try {
-      return await prisma.communityTag.findMany({
+      const result = await prisma.communityTag.findMany({
         where: {
           active: true,
         },
-        include: {
-          select: {
-            id: true,
-            name: true,
-            icon_url: true,
-            slug: true,
+        select: {
+          id: true,
+          name: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+            },
           },
-          category: true,
         },
         orderBy: {
           name: "asc",
         },
       });
+      return result;
     } catch (error) {
       throw new Error(`Failed to get community tags: ${error}`);
     }

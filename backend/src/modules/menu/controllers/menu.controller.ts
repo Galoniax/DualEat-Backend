@@ -2,52 +2,40 @@ import { Request, Response } from "express";
 
 import { FoodService } from "../services/food.service";
 import { ManualService } from "../services/manual.service";
-import { OrderService } from "../services/order.service";
 import { processMenuImage, MenuDish } from "../services/ocr.service";
 
 export class MenuController {
   constructor(
     private foodService: FoodService,
     private manualService: ManualService,
-    private orderService: OrderService
   ) {}
-
-   getOrders = async (req: Request, res: Response) => {
-    try {
-      const localId = req.params.id;
-      const { status, from, to } = req.query;
-
-      if (typeof localId !== "string" || !localId) {
-        return res.status(400).json({ error: "El ID del local no es válido." });
-      }
-
-      const orders = await this.orderService.getOrders(localId, status as string, from as string, to as string);
-
-      return res.json(orders);
-    } catch (error) {
-      console.error("Error al obtener pedidos:", error);
-      return res.status(500).json({ error: "Error interno del servidor" });
-    }
-  }
 
   // ============================================
   // FOODS - LIST & GET
   // ============================================
-
-  /** Consulta la base de datos para obtener la lista de platos de un local */
-  listFoods = async (req: Request, res: Response) => {
+  getFoods = async (req: Request, res: Response) => {
     try {
-      const localId = req.params.localId;
+      const { localId } = req.params;
+
       if (typeof localId !== "string" || !localId) {
-        return res.status(400).json({ error: "Invalid local ID" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Local inválido" });
       }
 
-      const foods = await this.manualService.getFoodsByLocalWithVotes(localId);
+      const foods = await this.foodService.getLocalWithMenu({ id: localId });
 
-      return res.status(200).json(foods);
-    } catch (error: any) {
-      console.error("Error fetching foods:", error);
-      return res.status(500).json({ error: error.message });
+      if (!foods) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Local no encontrado" });
+      }
+
+      return res.status(200).json({ success: true, data: foods });
+    } catch (e) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Error interno del servidor" });
     }
   };
 
@@ -59,9 +47,26 @@ export class MenuController {
     res.json(food);
   };
 
-  // ============================================
-  // FOODS - CREATE (Single & Bulk)
-  // ============================================
+  getFoodsByIds = async (req: Request, res: Response) => {
+    const { food_ids } = req.body;
+
+    try {
+      if (!food_ids || !Array.isArray(food_ids) || food_ids.length == 0) {
+        return res.status(400).json({
+          success: false,
+          message: "No se proporcionaron IDs de platos",
+        });
+      }
+
+      const foods = await this.foodService.getFoodsByIds(food_ids);
+
+      res.json({ success: true, data: foods });
+    } catch (e) {
+      res
+        .status(500)
+        .json({ success: false, message: "Error interno del servidor" });
+    }
+  };
 
   /** Crea un plato individual manualmente */
   createFood = async (req: Request, res: Response) => {
@@ -125,10 +130,6 @@ export class MenuController {
     }
   };
 
-  // ============================================
-  // FOODS - UPDATE & DELETE
-  // ============================================
-
   /** Actualiza un plato por su ID */
   updateFood = async (req: Request, res: Response) => {
     try {
@@ -149,7 +150,7 @@ export class MenuController {
 
       const updatedFood = await this.manualService.updateFood(
         String(foodId),
-        dataToUpdate
+        dataToUpdate,
       );
       return res.json(updatedFood);
     } catch (error) {
@@ -250,7 +251,7 @@ export class MenuController {
 
       const savedFoods = await this.foodService.createFoodsFromOcr(
         localId,
-        dishesToSave
+        dishesToSave,
       );
 
       res.status(200).json({

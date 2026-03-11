@@ -51,7 +51,7 @@ export class CommunityTagController {
     try {
       const tags = await this.communityTagService.getAllCommunityTags();
 
-      if (tags.length === 0)
+      if (!tags || tags.length === 0)
         return res
           .status(404)
           .json({ success: false, message: "No se encontraron etiquetas" });

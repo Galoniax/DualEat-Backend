@@ -22,7 +22,7 @@ export class PostController {
       const result = await this.postService.getAllPosts(
         Number(page),
         String(user_id),
-        Boolean(recipe)
+        Boolean(recipe),
       );
 
       if (!result) {
@@ -31,9 +31,11 @@ export class PostController {
           .json({ success: false, error: "Posts not found" });
       }
 
-      res.status(200).json({ success: true, ...result });
-    } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message });
+      return res.status(200).json({ success: true, ...result });
+    } catch (e) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Error interno del servidor" });
     }
   };
 
@@ -54,16 +56,18 @@ export class PostController {
         String(communitySlug),
         String(postSlug),
         user_id,
-        Number(sortBy)
+        Number(sortBy),
       );
       if (!post) {
         return res
           .status(404)
           .json({ success: false, error: "Post not found" });
       }
-      res.status(200).json({ success: true, data: post });
-    } catch (error) {
-      res.status(500).json({ success: false, error: (error as Error).message });
+      return res.status(200).json({ success: true, data: post });
+    } catch (e) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Error interno del servidor" });
     }
   };
 
@@ -105,10 +109,10 @@ export class PostController {
           imageUrls = (await uploadAndGetUrl(
             imageFiles,
             "posts",
-            ""
+            "",
           )) as string[];
-        } catch (error) {
-          console.error("Error subiendo imágenes del post:", error);
+        } catch (e) {
+          console.error("Error subiendo imágenes del post:", e);
         }
       }
 
@@ -122,10 +126,10 @@ export class PostController {
           mainImageUrl = (await uploadAndGetUrl(
             mainFile,
             "recipes",
-            "recipe_main"
+            "recipe_main",
           )) as string;
-        } catch (error) {
-          console.error("Error subiendo imagen principal:", error);
+        } catch (e) {
+          console.error("Error subiendo imagen principal:", e);
         }
       }
 
@@ -135,17 +139,17 @@ export class PostController {
       if (steps && Array.isArray(steps)) {
         for (let i = 0; i < steps.length; i++) {
           const stepFile = files.find(
-            (f) => f.fieldname === `steps[${i}][image]`
+            (f) => f.fieldname === `steps[${i}][image]`,
           );
           if (stepFile) {
             try {
               steps[i].image_url = (await uploadAndGetUrl(
                 stepFile,
                 "recipes",
-                "steps"
+                "steps",
               )) as string;
-            } catch (error) {
-              console.error(`Error subiendo imagen del paso ${i + 1}:`, error);
+            } catch (e) {
+              console.error(`Error subiendo imagen del paso ${i + 1}:`, e);
               steps[i].image_url = null;
             }
           }
@@ -159,7 +163,6 @@ export class PostController {
         title,
         content,
         image_urls: imageUrls,
-        type,
         user_id: user_id,
         community_id: community_id,
       };
@@ -223,11 +226,10 @@ export class PostController {
           ? "Post y receta creados exitosamente"
           : "Post creado exitosamente",
       });
-    } catch (error: any) {
-      console.error("Error en create post:", error);
+    } catch (e) {
       return res.status(500).json({
         success: false,
-        message: error.message || "Error interno del servidor",
+        message: "Error interno del servidor",
       });
     }
   };
@@ -248,13 +250,13 @@ export class PostController {
         post_id,
         user_id,
         content,
-        parent_comment_id
+        parent_comment_id,
       );
       return res.status(201).json({ success: true, data: comment });
-    } catch (error) {
+    } catch (e) {
       return res
         .status(500)
-        .json({ success: false, error: (error as Error).message });
+        .json({ success: false, message: "Error interno del servidor" });
     }
   };
 }

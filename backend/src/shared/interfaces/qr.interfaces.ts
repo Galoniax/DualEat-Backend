@@ -1,4 +1,4 @@
 export interface QrResponse {
-    qrCodeDataUrl: string;
-    message: string;
-  }
+  qrCodeDataUrl: string;
+  message: string;
+}

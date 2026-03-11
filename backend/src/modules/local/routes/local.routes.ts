@@ -9,9 +9,10 @@ import { QrService } from "../../../core/services/qr.service";
 import { CalendarService } from "../service/calendar.service";
 import { DiscoveryService } from "../service/discovery.service";
 
-import { BusinessController } from "../controller/local.controller";
+import { LocalController } from "../controller/local.controller";
 import { AgendaController } from "../controller/agenda.controller";
 import { DiscoveryController } from "../controller/discovery.controller";
+import { FoodService } from "../../menu/services/food.service";
 
 const router = Router();
 
@@ -19,9 +20,9 @@ const settingsService = new SettingsService();
 const statisticsService = new StatisticsService();
 const qrService = new QrService();
 const agendaService = new CalendarService();
-const discoveryService = new DiscoveryService();
+const discoveryService = new DiscoveryService(new FoodService());
 
-const controller = new BusinessController(
+const controller = new LocalController(
   settingsService,
   statisticsService,
   qrService,
@@ -63,7 +64,7 @@ router.post("/discovery/nearby", discoveryController.getLocalByNearby);
 router.get("/discovery/local/:slug/reviews", discoveryController.getReviews);
 
 // =========================================================
-// 2. CONFIGURACIÓN Y SETTINGS (Business)
+// 2. CONFIGURACIÓN Y SETTINGS
 // =========================================================
 
 router.get("/settings/:localId", controller.getSettings);
@@ -102,7 +103,7 @@ router.post(
 );
 
 // Horarios
-router.get("/settings/:localId/schedule", controller.getSchedules);
+router.get("/settings/:slug/schedule", controller.getSchedules);
 router.put("/settings/:localId/schedule", controller.updateSchedules);
 
 // =========================================================
@@ -129,6 +130,6 @@ router.get("/statistics/:id/top-foods", controller.getTopFoods);
 router.get("/statistics/:id/monthly-earnings", controller.getMonthlyEarnings);
 
 // QR Code
-router.get("/tools/qr/:localId", controller.generateQrCodeController);
+router.get("/tools/qr/:localId", controller.generateQrCode);
 
 export default router;

@@ -15,6 +15,7 @@ import {
   UserSessionData,
   TempTokenPayload,
 } from "../../../shared/interfaces/user.dto";
+import { prisma } from "../../../core/database/prisma/prisma";
 
 const router = Router();
 
@@ -95,6 +96,29 @@ router.get(
         );
       }
     } else if (user && user.isExisting) {
+      
+      // ============ Obtener Workplaces del usuario =============
+      const workplaces = await prisma.localUser.findMany({
+        where: { user_id: user.id },
+        select: {
+          role: true,
+          local: {
+            select: {
+              id: true,
+              slug: true,
+              name: true, 
+            }
+          }
+        }
+      });
+
+      const workplaceData = workplaces.map(workplace => ({
+        id: workplace.local.id,
+        slug: workplace.local.slug,
+        name: workplace.local.name,
+        role: workplace.role
+      }));
+
       const userData: UserSessionData = {
         id: user.id,
         name: user.name,
@@ -104,10 +128,12 @@ router.get(
         provider: user.provider,
         isBusiness: user.isBusiness,
         active: user.active,
+        verified: user.verified,
         subscription_status: user.subscription_status,
         trial_ends_at: user.trial_ends_at,
         avatar_url: user.avatar_url,
 
+        workplaces: workplaceData,
         loginAt: new Date(),
         lastActivity: new Date(),
         deviceId: deviceID,

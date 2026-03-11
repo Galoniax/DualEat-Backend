@@ -1,10 +1,18 @@
 import { prisma } from "../../../core/database/prisma/prisma";
 import { User } from "@prisma/client";
+import { Workplace } from "../../../shared/interfaces/user.dto";
 import { BasicCreateDTO } from "../../../shared/interfaces/user.dto";
+
+export type UserWithWorkplaces = User & {
+  workplaces: Workplace[];
+};
 
 export class UserService {
   constructor() {}
 
+  // ============================================================
+  // CREAR USUARIO
+  // ============================================================
   async create(userData: BasicCreateDTO) {
     try {
       const result = await prisma.$transaction(async (tx) => {
@@ -13,29 +21,18 @@ export class UserService {
             email: userData.email,
             password_hash: userData.password_hash || "",
             slug: userData.slug,
-            name: userData.name || "",
-            avatar_url: userData.avatar_url || null,
+            name: userData.name,
+            avatar_url: userData.avatar_url,
             provider: userData.provider,
           },
         });
-
-        if (userData.avatar_url) {
-          await tx.user.update({
-            where: {
-              id: user.id,
-            },
-            data: {
-              avatar_url: userData.avatar_url,
-            },
-          });
-        }
 
         // --- CAMBIO AQUÍ: Usar food_category_id para foodPreferences ---
         if (userData.foodPreferences?.length) {
           await tx.userPreference.createMany({
             data: userData.foodPreferences.map((foodId) => ({
               user_id: user.id,
-              food_category_id: Number(foodId), 
+              food_category_id: Number(foodId),
             })),
             skipDuplicates: true,
           });
@@ -46,7 +43,7 @@ export class UserService {
           await tx.userPreference.createMany({
             data: userData.communityPreferences.map((communityId) => ({
               user_id: user.id,
-              community_tag_id: Number(communityId), 
+              community_tag_id: Number(communityId),
             })),
             skipDuplicates: true,
           });
@@ -61,18 +58,53 @@ export class UserService {
     }
   }
 
-  async getByEmail(email: string): Promise<User | null> {
+  // ============================================================
+  // OBTENER USUARIO POR EMAIL
+  // ============================================================
+  async getByEmail(email: string): Promise<UserWithWorkplaces | null> {
     try {
       const result = await prisma.user.findUnique({
         where: { email },
+        include: {
+          local_users: {
+            select: {
+              role: true,
+              local: {
+                select: {
+                  id: true,
+                  slug: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
       });
-      return result;
-    } catch (error) {
-      console.error("Error al buscar usuario por email:", error);
-      throw error;
+
+      if (!result) return null;
+
+      const workplaces: Workplace[] = result.local_users.map((lu) => ({
+        id: lu.local.id,
+        slug: lu.local.slug,
+        name: lu.local.name,
+        role: lu.role,
+      }));
+
+      const { local_users, ...userBaseData } = result;
+
+      return {
+        ...userBaseData,
+        workplaces,
+      };
+    } catch (e) {
+      console.log("Error al buscar usuario por email:", e);
+      throw e;
     }
   }
 
+  // ============================================================
+  // ACTUALIZAR IMAGEN DE PERFIL
+  // ============================================================
   async updateAvatar(userId: string, avatarUrl: string): Promise<User> {
     try {
       const result = await prisma.user.update({
@@ -81,11 +113,14 @@ export class UserService {
       });
       return result;
     } catch (error) {
-      console.error("Error al actualizar avatar:", error);
+      console.error("Error al actualizar imagen de perfil:", error);
       throw error;
     }
   }
 
+  // ============================================================
+  // OBTENER USUARIO POR ID
+  // ============================================================
   async getById(userId: string): Promise<User | null> {
     try {
       const result = await prisma.user.findUnique({
@@ -101,6 +136,9 @@ export class UserService {
     }
   }
 
+  // ============================================================
+  // ACTUALIZAR USUARIO
+  // ============================================================
   async update(userId: string, data: any) {
     try {
       const result = await prisma.user.update({

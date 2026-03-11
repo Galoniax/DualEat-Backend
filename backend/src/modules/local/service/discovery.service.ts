@@ -1,15 +1,16 @@
 import { DayOfWeek } from "@prisma/client";
 import { prisma } from "../../../core/database/prisma/prisma";
+import { FoodService } from "../../menu/services/food.service";
 
 interface preferencesDTO {
   filter: "distancia" | "descuento";
-  categorias: string[];
+  categorias: number[];
   horario: boolean;
   bestSellers: boolean;
 }
 
 export class DiscoveryService {
-  constructor() {}
+  constructor(private readonly foodService: FoodService) {}
 
   private days: DayOfWeek[] = [
     "LUNES",
@@ -30,6 +31,8 @@ export class DiscoveryService {
     lonMin: number,
     lonMax: number,
     preferencesDTO: preferencesDTO,
+
+    query?: string,
   ) {
     // 1. Obtener el día de la semana actual
     const now = new Date();
@@ -41,10 +44,28 @@ export class DiscoveryService {
       ":" +
       now.getMinutes().toString().padStart(2, "0");
 
+    const queryFilter: any =
+      query && query.trim() !== ""
+        ? {
+            OR: [
+              { name: { contains: query.trim(), mode: "insensitive" } },
+              {
+                foods: {
+                  some: {
+                    name: { contains: query.trim(), mode: "insensitive" },
+                  },
+                },
+              },
+            ],
+          }
+        : {};
+
     const locals = await prisma.local.findMany({
       where: {
         latitude: { gte: latMin, lte: latMax },
         longitude: { gte: lonMin, lte: lonMax },
+
+        ...queryFilter,
         schedules: preferencesDTO.horario
           ? {
               some: {
@@ -58,10 +79,19 @@ export class DiscoveryService {
           preferencesDTO.categorias.length > 0
             ? {
                 some: {
-                  name: { in: preferencesDTO.categorias },
+                  id: { in: preferencesDTO.categorias },
+                  foods: {
+                    some: {},
+                  },
                 },
               }
-            : undefined,
+            : /*{
+                some: {
+                  foods: {
+                    some: {},
+                  },
+                },
+              },*/ undefined,
 
         promotions:
           preferencesDTO.filter === "descuento"
@@ -78,19 +108,26 @@ export class DiscoveryService {
             }
           : undefined,
       },
-
+      take: 80,
       select: {
         id: true,
         name: true,
+        slug: true,
+        type_local: true,
+        image_url: true,
         latitude: true,
         longitude: true,
         address: true,
         average_rating: true,
         promotions: {
-          where: { discount_pct: { gt: 0 } },
+          where: {
+            active: true,
+            discount_pct: { gt: 0 },
+          },
           orderBy: { discount_pct: "desc" },
           take: 1,
         },
+
         _count: {
           select: { reviews: true },
         },
@@ -101,11 +138,179 @@ export class DiscoveryService {
       return locals.sort((a, b) => {
         const descA = a.promotions[0]?.discount_pct || 0;
         const descB = b.promotions[0]?.discount_pct || 0;
-        return descB - descA; // De mayor a menor
+        return descB - descA;
       });
     }
 
+    if (!locals) return null;
+
     return locals;
+  }
+
+  async getHomeFeed(lat: number, lng: number, user_id: string) {
+    const offset = 40000 / 111000;
+    const latMin = lat - offset;
+    const latMax = lat + offset;
+    const lngMin = lng - offset / Math.cos((lat * Math.PI) / 180);
+    const lngMax = lng + offset / Math.cos((lat * Math.PI) / 180);
+
+    const now = new Date();
+    const current = this.days[now.getDay()];
+    const time =
+      now.getHours().toString().padStart(2, "0") +
+      ":" +
+      now.getMinutes().toString().padStart(2, "0");
+
+    const baseLocalFilter = {
+      latitude: { gte: latMin, lte: latMax },
+      longitude: { gte: lngMin, lte: lngMax },
+      schedules: {
+        some: {
+          day_of_week: current,
+          open_time: { lte: time },
+          close_time: { gte: time },
+        },
+      },
+    };
+
+    const userPreferenceFilter = {
+      categories: {
+        some: {
+          user_preferences: { some: { user_id } },
+        },
+      },
+    };
+
+    // 2. Ejecutamos las consultas con un código mucho más limpio
+    const [parati, ofertasHot, promociones, masPedidos, mejoresRestaurantes] =
+      await Promise.all([
+        // Para ti:
+        prisma.food.findMany({
+          where: { local: { ...baseLocalFilter, ...userPreferenceFilter } },
+          include: {
+            local: {
+              select: {
+                name: true,
+                image_url: true,
+                average_rating: true,
+                latitude: true,
+                longitude: true,
+                slug: true,
+              },
+            },
+            promotions: true,
+          },
+          orderBy: { promotions: { active: "desc" } },
+          take: 15,
+        }),
+
+        // Ofertas Hot
+        prisma.food.findMany({
+          where: {
+            promotions: {
+              active: true,
+              discount_pct: { gt: 0 },
+              ends_at: { gte: now },
+            },
+            local: baseLocalFilter,
+          },
+          include: {
+            local: {
+              select: {
+                name: true,
+                image_url: true,
+                average_rating: true,
+                slug: true,
+                latitude: true,
+                longitude: true,
+              },
+            },
+            promotions: {
+              where: {
+                active: true,
+                discount_pct: { gt: 0 },
+                ends_at: { gte: now },
+              },
+            },
+          },
+          take: 15,
+        }),
+
+        // Promociones:
+        prisma.food.findMany({
+          where: {
+            promotions: {
+              active: true,
+              discount_pct: { gt: 0 },
+            },
+            local: { ...baseLocalFilter },
+          },
+          include: {
+            local: {
+              select: {
+                name: true,
+                image_url: true,
+                average_rating: true,
+                latitude: true,
+                longitude: true,
+                slug: true,
+              },
+            },
+            promotions: {
+              where: {
+                active: true,
+                discount_pct: { gt: 0 },
+              },
+            },
+          },
+          take: 15,
+        }),
+
+        // Más Pedidos
+        prisma.food.findMany({
+          where: { local: { ...baseLocalFilter } },
+          include: {
+            local: {
+              select: {
+                name: true,
+                image_url: true,
+                average_rating: true,
+                slug: true,
+                latitude: true,
+                longitude: true,
+              },
+            },
+            promotions: true,
+          },
+          orderBy: { order_items: { _count: "desc" } },
+          take: 15,
+        }),
+
+        // Mejores Restaurantes
+        prisma.local.findMany({
+          where: { ...baseLocalFilter },
+          include: {
+            promotions: {
+              where: { active: true, discount_pct: { gt: 0 } },
+              orderBy: { discount_pct: "desc" },
+              take: 1,
+            },
+          },
+          orderBy: { average_rating: "desc" },
+          take: 15,
+        }),
+      ]);
+
+    const response: any = {};
+
+    if (parati.length > 0) response.parati = parati;
+    if (ofertasHot.length > 0) response.ofertas_hot = ofertasHot;
+    if (promociones.length > 0) response.promociones = promociones;
+    if (masPedidos.length > 0) response.mas_pedidos = masPedidos;
+    if (mejoresRestaurantes.length > 0)
+      response.restaurantes_destacados = mejoresRestaurantes;
+
+    return response;
   }
 
   // =========================================================
@@ -127,88 +332,55 @@ export class DiscoveryService {
       ":" +
       now.getMinutes().toString().padStart(2, "0");
 
-    const locals = await prisma.local.findMany({
-      where: {
-        latitude: { gte: latMin, lte: latMax },
-        longitude: { gte: lngMin, lte: lngMax },
+    try {
+      const locals = await prisma.local.findMany({
+        where: {
+          latitude: { gte: latMin, lte: latMax },
+          longitude: { gte: lngMin, lte: lngMax },
 
-        /*schedules: {
+          /*schedules: {
           some: {
             day_of_week: current,
             open_time: { lte: time },
             close_time: { gte: time },
           },
         },*/
-      },
-      select: {
-        name: true,
-        slug: true,
-        latitude: true,
-        longitude: true,
-        address: true,
-        average_rating: true,
-      },
-    });
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          image_url: true,
+          latitude: true,
+          longitude: true,
+          address: true,
+          average_rating: true,
+        },
+      });
 
-    return locals.filter((local) => {
-      const distance = this.calculateDistance(
-        lat,
-        lng,
-        local.latitude,
-        local.longitude,
-      );
-      return distance <= radius;
-    });
+      return locals.filter((local) => {
+        const distance = this.calculateDistance(
+          lat,
+          lng,
+          local.latitude,
+          local.longitude,
+        );
+        return distance <= radius;
+      });
+    } catch (e) {
+      return null;
+    }
   }
 
   // =========================================================
   // OBTENER LOCAL
   // =========================================================
   async getLocal(slug: string) {
-    const now = new Date();
     try {
-      const local = await prisma.local.findUnique({
-        where: { slug },
-        include: {
-          schedules: {
-            select: { day_of_week: true, open_time: true, close_time: true },
-            orderBy: { day_of_week: "asc" },
-          },
-          promotions: {
-            where: {
-              active: true,
-              OR: [
-                {
-                  starts_at: {
-                    lte: now,
-                  },
-                  ends_at: {
-                    gte: now,
-                  },
-                },
-                {
-                  starts_at: null,
-                  ends_at: null,
-                },
-              ],
-            },
-          },
-          categories: {
-            include: {
-              foods: {
-                where: {
-                  local: {
-                    slug: slug,
-                  },
-                },
-              },
-            },
-          },
-        },
-      });
+      const local = await this.foodService.getLocalWithMenu({ slug });
       return local;
     } catch (e) {
-      console.error("Error obteniendo local por slug:", e);
+      return null;
     }
   }
 
@@ -253,7 +425,7 @@ export class DiscoveryService {
         },
       };
     } catch (e) {
-      console.error("Error obteniendo reviews por slug:", e);
+      return null;
     }
   }
 

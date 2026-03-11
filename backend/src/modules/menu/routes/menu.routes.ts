@@ -4,7 +4,6 @@ import { createClient } from "@supabase/supabase-js";
 
 import { FoodService } from "../services/food.service";
 import { ManualService } from "../services/manual.service";
-import { OrderService } from "../services/order.service";
 
 import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
@@ -14,9 +13,8 @@ const router = Router();
 
 const foodService = new FoodService();
 const manualService = new ManualService();
-const orderService = new OrderService();
 
-const controller = new MenuController(foodService, manualService, orderService);
+const controller = new MenuController(foodService, manualService);
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -69,11 +67,8 @@ router.post("/upload-image", upload.single("image"), async (req, res) => {
   }
 });
 
-// Obtener ordenes de un local
-router.get("/locals/:id/orders", controller.getOrders);
-
 // Listar todos los platos de un local
-router.get("/local/:localId/foods", controller.listFoods);
+router.get("/local/:localId/foods", controller.getFoods);
 
 // Obtener un plato puntual
 router.get("/foods/:foodId", controller.getFoodById);

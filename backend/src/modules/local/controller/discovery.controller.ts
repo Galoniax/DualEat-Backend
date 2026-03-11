@@ -8,22 +8,8 @@ export class DiscoveryController {
   // OBTENER LOCAL POR MAPA O PREFERENCIAS
   // =========================================================
   getLocalInBounds = async (req: Request, res: Response) => {
-    const { minLat, maxLat, minLng, maxLng } = req.body;
+    const { minLat, maxLat, minLng, maxLng, query } = req.body;
     const { preferencesDTO } = req.body;
-
-    //console.log("Received preferencesDTO:", preferencesDTO);
-    //console.log("Received bounds:", { minLat, maxLat, minLng, maxLng });
-
-    if (
-      minLat === undefined ||
-      maxLat === undefined ||
-      minLng === undefined ||
-      maxLng === undefined
-    ) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Faltan parámetros de ubicación" });
-    }
 
     try {
       const locals = await this.discoveryService.getLocalsInBounds(
@@ -32,6 +18,7 @@ export class DiscoveryController {
         Number(minLng),
         Number(maxLng),
         preferencesDTO,
+        String(query),
       );
 
       if (!locals)
@@ -39,9 +26,30 @@ export class DiscoveryController {
           .status(404)
           .json({ success: false, message: "No se encontraron locales" });
 
-      return res.json({ success: true, data: locals });
-    } catch (error) {
-      console.error("Error buscando locales en bounds:", error);
+      return res.status(200).json({ success: true, data: locals });
+    } catch (e) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Error interno del servidor" });
+    }
+  };
+
+
+  // =========================================================
+  // OBTENER HOME FEED
+  // =========================================================
+  getHomeFeed = async (req: Request, res: Response) => {
+    const { lat, lng, user_id } = req.body;
+
+    try {
+      const homeFeed = await this.discoveryService.getHomeFeed(
+        Number(lat),
+        Number(lng),
+        String(user_id),
+      );
+
+      return res.status(200).json({ success: true, data: homeFeed });
+    } catch (e) {
       return res
         .status(500)
         .json({ success: false, message: "Error interno del servidor" });
@@ -52,7 +60,7 @@ export class DiscoveryController {
   // OBTENER LOCALES POR CERCANÍA
   // =========================================================
   getLocalByNearby = async (req: Request, res: Response) => {
-    const { lat, lng } = req.body;
+    const { lat, lng, radius } = req.body;
 
     if (!lat || !lng) {
       return res
@@ -64,7 +72,7 @@ export class DiscoveryController {
       const locals = await this.discoveryService.getLocalsByNearby(
         Number(lat),
         Number(lng),
-        1000,
+        Number(radius) || 1000,
       );
 
       if (!locals || locals.length === 0) {
@@ -76,7 +84,7 @@ export class DiscoveryController {
           });
       }
 
-      return res.json({ success: true, data: locals });
+      return res.status(200).json({ success: true, data: locals });
     } catch (e) {
       return res
         .status(500)
@@ -90,6 +98,12 @@ export class DiscoveryController {
   getLocal = async (req: Request, res: Response) => {
     const { slug } = req.params;
 
+    if (!slug || typeof slug !== "string") {
+      return res
+        .status(400)
+        .json({ success: false, message: "Slug invalido o no proporcionado" });
+    }
+
     try {
       const local = await this.discoveryService.getLocal(String(slug));
 
@@ -98,7 +112,7 @@ export class DiscoveryController {
           .status(404)
           .json({ success: false, message: "Local no encontrado" });
 
-      return res.json({ success: true, data: local });
+      return res.status(200).json({ success: true, data: local });
     } catch (e) {
       return res
         .status(500)
@@ -124,7 +138,7 @@ export class DiscoveryController {
           .status(404)
           .json({ success: false, message: "Reviews no encontradas" });
 
-      return res.json({ success: true, ...reviews });
+      return res.status(200).json({ success: true, ...reviews });
     } catch (e) {
       return res
         .status(500)

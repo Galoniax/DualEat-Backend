@@ -9,14 +9,11 @@ export class VoteService {
     content_id: string,
     data: any
   ) {
-    if (content_type === ContentType.post) {
+    if (content_type === ContentType.POST) {
       return tx.post.update({ where: { id: content_id }, data });
     }
-    if (content_type === ContentType.comment) {
+    if (content_type === ContentType.COMMENT) {
       return tx.postComment.update({ where: { id: content_id }, data });
-    }
-    if (content_type === ContentType.food) {
-      return tx.food.update({ where: { id: content_id }, data });
     }
     throw new Error("Tipo de contenido no soportado");
   }
@@ -47,7 +44,7 @@ export class VoteService {
           });
 
           const decrementData =
-            vote_type === VoteType.up
+            vote_type === VoteType.UP
               ? { votes_up: { decrement: 1 } }
               : { votes_down: { decrement: 1 } };
 
@@ -74,9 +71,9 @@ export class VoteService {
           });
 
           const decrementKey =
-            existingVote.vote_type === VoteType.up ? "votes_up" : "votes_down";
+            existingVote.vote_type === VoteType.UP ? "votes_up" : "votes_down";
           const incrementKey =
-            vote_type === VoteType.up ? "votes_up" : "votes_down";
+            vote_type === VoteType.UP ? "votes_up" : "votes_down";
 
           const updateData = {
             [decrementKey]: { decrement: 1 },
@@ -105,7 +102,7 @@ export class VoteService {
           });
 
           const incrementData =
-            vote_type === VoteType.up
+            vote_type === VoteType.UP
               ? { votes_up: { increment: 1 } }
               : { votes_down: { increment: 1 } };
 

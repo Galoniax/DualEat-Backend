@@ -86,7 +86,6 @@ export class CommunityController {
         image_url:
           imageUrl ||
           "https://ohhvldagwoycuifwhgtc.supabase.co/storage/v1/object/public/assets/DefaultCommunity.jpg",
-        theme_color: themeColor || "#e5a657",
         visibility,
         creator_id,
         selectedTags: tagsArray,

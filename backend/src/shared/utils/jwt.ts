@@ -26,8 +26,8 @@ function hashUserId(userId: string): string {
 
 function encodeRole(role: Role): string {
   const roleMap: Record<Role, string> = {
-    admin: "a",
-    user: "u",
+    ADMIN: "a",
+    USER: "u",
   };
   return roleMap[role] || "u";
 }

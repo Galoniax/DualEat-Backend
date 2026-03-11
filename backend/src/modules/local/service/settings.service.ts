@@ -3,45 +3,44 @@ import { Local, LocalSchedule, DayOfWeek } from "@prisma/client";
 
 type ScheduleInput = {
   day_of_week: DayOfWeek;
-  open_time: string; // Formato "HH:MM"
-  close_time: string; // Formato "HH:MM"
+  open_time: string;
+  close_time: string;
 };
 
 export class SettingsService {
-  
-  /** GET LOCAL SETTINGS */
-  async getLocalSettings(localId: string): Promise<Partial<Local> | null> {
-    const localSettings = await this.findLocalById(localId);
-    return localSettings;
-  }
-
   /** GET LOCAL BY ID */
-  async findLocalById(localId: string): Promise<Partial<Local> | null> {
-    const local = await prisma.local.findUnique({
-      where: {
-        id: localId,
-      },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        address: true,
-        phone: true,
-        email: true,
-        image_url: true,
-        categorias_menu: true,
-        latitude: true,
-        longitude: true,
-      },
-    });
-
-    return local;
+  async getLocalById(localId: string) {
+    try {
+      const local = await prisma.local.findUnique({
+        where: {
+          id: localId,
+        },
+        include: {
+          categories: true,
+          schedules: {
+            select: { day_of_week: true, open_time: true, close_time: true },
+            orderBy: { day_of_week: "asc" },
+          },
+          promotions: {
+            where: {
+              active: true,
+              discount_pct: { gt: 0 },
+              food_id: null,
+            },
+          },
+        },
+      });
+      return local;
+    } catch (e) {
+      console.error("Error obteniendo local por ID:", e);
+      return null;
+    }
   }
 
   /** UPDATE LOCAL BY ID */
   async updateLocalById(
     localId: string,
-    data: Partial<Local>
+    data: Partial<Local>,
   ): Promise<Local | null> {
     try {
       const updatedLocal = await prisma.local.update({
@@ -53,7 +52,7 @@ export class SettingsService {
           phone: data.phone,
           email: data.email,
           image_url: data.image_url,
-          categorias_menu: data.categorias_menu,
+          categories: data.categories,
 
           latitude: data.latitude,
           longitude: data.longitude,
@@ -71,15 +70,12 @@ export class SettingsService {
   /** UPDATE LOCAL SCHEDULES */
   async updateLocalSchedules(
     localId: string,
-    schedules: ScheduleInput[]
+    schedules: ScheduleInput[],
   ): Promise<LocalSchedule[]> {
-    // Usamos una transacción para garantizar que o se aplican TODOS los cambios, o ninguno.
     const transaction = await prisma.$transaction(async (tx) => {
-      // 1. ELIMINAR todos los horarios existentes para el local
       await tx.localSchedule.deleteMany({
         where: { local_id: localId },
-      }); // 2. CREAR los nuevos horarios
-      // Mapeamos y creamos las promesas de inserción
+      });
 
       const createPromises = schedules.map((schedule) =>
         tx.localSchedule.create({
@@ -89,8 +85,8 @@ export class SettingsService {
             open_time: schedule.open_time,
             close_time: schedule.close_time,
           },
-        })
-      ); // Ejecutamos todas las inserciones
+        }),
+      );
 
       const newSchedules = await Promise.all(createPromises);
       return newSchedules;
@@ -100,13 +96,22 @@ export class SettingsService {
   }
 
   /** GET LOCAL SCHEDULES */
-  async getLocalSchedules(localId: string): Promise<LocalSchedule[]> {
-    const schedules = await prisma.localSchedule.findMany({
-      where: { local_id: localId }, // Opcional: ordenar por el valor del ENUM (ej: LUNES=0, MARTES=1)
-      orderBy: {
-        day_of_week: "asc", // Esto funciona si los ENUM se manejan con índices
-      },
-    });
-    return schedules;
+  async getLocalSchedules(slug: string) {
+    try {
+      const local = await prisma.local.findUnique({
+        where: { slug },
+        include: {
+          schedules: {
+            select: { day_of_week: true, open_time: true, close_time: true },
+            orderBy: { day_of_week: "asc" },
+          },
+        },
+      });
+
+      if (!local) return null;
+      return local;
+    } catch (e) {
+      return null;
+    }
   }
 }

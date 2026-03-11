@@ -5,7 +5,7 @@ import { QrService } from "../../../core/services/qr.service";
 
 import { DayOfWeek } from "@prisma/client";
 
-export class BusinessController {
+export class LocalController {
   constructor(
     private settingsService: SettingsService,
     private stadisticsService: StatisticsService,
@@ -15,7 +15,6 @@ export class BusinessController {
   // =========================================================
   // CONFIGURACIÓN Y HORARIOS
   // =========================================================
-
   getSettings = async (req: Request, res: Response) => {
     try {
       const localId = req.params.localId;
@@ -24,18 +23,16 @@ export class BusinessController {
         return res.status(400).json({ error: "Local ID es invalido" });
       }
 
-      const settings = await this.settingsService.getLocalSettings(localId);
+      const settings = await this.settingsService.getLocalById(localId);
       if (!settings)
         return res.status(404).json({ error: "Local no encontrado" });
       return res.status(200).json(settings);
-    } catch (error: any) {
-      console.error("Error obteniendo la configuración del local:", error);
-
+    } catch (e) {
       return res
         .status(500)
-        .json({ error: error.message || "Error interno del servidor" });
+        .json({ success: false, message: "Error interno del servidor" });
     }
-  };
+  };  
 
   updateSettings = async (req: Request, res: Response) => {
     try {
@@ -63,27 +60,37 @@ export class BusinessController {
       }
 
       return res.status(200).json(updatedSettings);
-    } catch (error: any) {}
+    } catch (e) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Error interno del servidor" });
+    }
   };
 
   getSchedules = async (req: Request, res: Response) => {
+    const { slug } = req.params;
+
+    if (!slug || typeof slug !== "string") {
+      return res
+        .status(400)
+        .json({ success: false, message: "Slug invalido o no proporcionado" });
+    }
+
     try {
-      const localId = req.params.localId;
+      const schedules = await this.settingsService.getLocalSchedules(
+        String(slug),
+      );
 
-      if (!localId || typeof localId !== "string") {
-        return res.status(400).json({ error: "Local ID es invalido" });
-      }
-
-      const schedules = await this.settingsService.getLocalSchedules(localId);
       if (!schedules)
-        return res.status(404).json({ error: "Local no encontrado" });
-      return res.status(200).json(schedules);
-    } catch (error: any) {
-      console.error("Error obteniendo los horarios del local:", error);
+        return res
+          .status(404)
+          .json({ success: false, message: "Horarios no encontrados" });
 
+      return res.status(200).json({ success: true, data: schedules });
+    } catch (e) {
       return res
         .status(500)
-        .json({ error: error.message || "Error interno del servidor" });
+        .json({ success: false, message: "Error interno del servidor" });
     }
   };
 
@@ -129,13 +136,11 @@ export class BusinessController {
         message: "Horarios actualizados exitosamente.",
         schedules: updatedSchedules,
       });
-    } catch (error: any) {
-      console.error("Error actualizando los horarios del local:", error);
-
+    } catch (e) {
       return res
         .status(500)
-        .json({ error: error.message || "Error interno del servidor" });
-    }
+        .json({ success: false, message: "Error interno del servidor" });
+    } 
   };
 
   // =========================================================
@@ -159,13 +164,13 @@ export class BusinessController {
       return res.json({
         top_foods,
       });
-    } catch (error) {
-      console.error("Error al obtener estadísticas:", error);
-      return res.status(500).json({ error: "Error interno del servidor" });
+    } catch (e) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Error interno del servidor" });
     }
   };
 
-  // Nuevo método para manejar las ganancias mensuales
   getMonthlyEarnings = async (req: Request, res: Response) => {
     try {
       const localId = req.params.id;
@@ -188,16 +193,17 @@ export class BusinessController {
         );
 
       return res.json(monthlyEarnings);
-    } catch (error) {
-      console.error("Error al obtener ganancias mensuales:", error);
-      return res.status(500).json({ error: "Error interno del servidor" });
+    } catch (e) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Error interno del servidor" });
     }
   };
 
   // =========================================================
   // ACTIVOS (QR)
   // =========================================================
-  generateQrCodeController = async (req: Request, res: Response) => {
+  generateQrCode = async (req: Request, res: Response) => {
     try {
       const localId = req.params.localId;
       if (typeof localId !== "string" || !localId) {
@@ -206,13 +212,13 @@ export class BusinessController {
 
       const qrResponse = await this.qrService.generateQrForLocal(localId);
       res.json(qrResponse);
-    } catch (error: any) {
-      if (error.message === "Local no encontrado") {
-        return res.status(404).json({ error: error.message });
+    } catch (e: any) {
+      if (e.message === "Local no encontrado") {
+        return res.status(404).json({ error: e.message });
       }
-      res
+      return res
         .status(500)
-        .json({ error: "Error interno del servidor al generar el código QR." });
+        .json({ success: false, message: "Error interno del servidor" });
     }
   };
 }

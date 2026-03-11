@@ -2,12 +2,10 @@ import express from "express";
 import passport from "passport";
 import session from "express-session";
 import cookieParser from "cookie-parser";
-import jwt from "jsonwebtoken";
 import cors from "cors";
 import dotenv from "dotenv";
 import http from "http";
 
-// 1. IMPORTACIONES
 import {
   Auth,
   Contact,
@@ -15,6 +13,7 @@ import {
   Menu,
   FoodCategory,
   Local,
+  Order,
   Community,
   CommunityTags,
   Recipe,
@@ -58,8 +57,6 @@ async function initializeApp() {
 initializeApp();
 
 const allowedOrigins = [process.env.FRONTEND_URL, process.env.MOBILE_URL];
-
-console.log("Allowed origins:", allowedOrigins);
 
 const validOrigins = allowedOrigins.filter(
   (origin): origin is string => typeof origin === "string"
@@ -131,21 +128,9 @@ app.use(`${API_PREFIX}/admin`, Admin);
 app.use(`${API_PREFIX}/users`, Users);
 app.use(`${API_PREFIX}/review`, Review);
 app.use(`${API_PREFIX}/menu`, Menu);
-app.use(`${API_PREFIX}/food-menu-categories`, FoodCategory);
+app.use(`${API_PREFIX}/food-categories`, FoodCategory);
 app.use(`${API_PREFIX}/local`, Local);
-
-
-// 6. RUTAS DE PRUEBA Y MANEJO DE ERRORES
-app.get("/status", (req, res) => {
-  const token = req.cookies?.accessToken;
-  if (!token) return res.json({ authenticated: false });
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
-    return res.json({ authenticated: true, user: decoded });
-  } catch (err) {
-    return res.json({ authenticated: false });
-  }
-});
+app.use(`${API_PREFIX}/order`, Order);
 
 // Middleware de manejo de errores
 app.use(
@@ -167,7 +152,7 @@ app.use(
 const cleanupJob = new CleanupJob();
 cleanupJob.start();
 
-// 7. INICIAR SERVIDOR
+// 6. INICIAR SERVIDOR
 httpServer.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}${API_PREFIX}`);
   console.log(`Google OAuth Callback URL: ${process.env.GOOGLE_CALLBACK_URL}`);

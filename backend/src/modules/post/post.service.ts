@@ -5,7 +5,7 @@ import { CreateRecipeDTO } from "../../shared/interfaces/recipe.dto";
 
 import { generateReadableSlug } from "../../shared/utils/sluglify";
 import { getSocketServer } from "../../core/config/socket.config";
-import { Post, Recipe, Community } from "@prisma/client";
+import { Post, Recipe, Community, ContentType } from "@prisma/client";
 
 import { interleaveByCommunity } from "../../shared/utils/shuffler";
 
@@ -278,7 +278,7 @@ export class PostService {
 
       const votes = await prisma.vote.findMany({
         where: {
-          content_type: "post",
+          content_type: ContentType.POST,
           content_id: {
             in: results
               .filter((r) => r.status === "fulfilled")
@@ -397,14 +397,14 @@ export class PostService {
         where: {
           user_id,
           content_id: post.id,
-          content_type: "post",
+          content_type: ContentType.POST,
         },
       });
 
       const commentVotes = await prisma.vote.findMany({
         where: {
           user_id,
-          content_type: "comment",
+          content_type: ContentType.COMMENT,
           content_id: {
             in: allComments.map((c) => c.id),
           },
@@ -535,7 +535,6 @@ export class PostService {
               slug: slugPost,
               content: postData.content,
               image_urls: postData.image_urls,
-              type: postData.type,
               user_id: postData.user_id,
               community_id: postData.community_id,
               recipe_id: recipe.id,
@@ -556,7 +555,6 @@ export class PostService {
             slug: slugPost,
             content: postData.content,
             image_urls: postData.image_urls,
-            type: postData.type,
             user_id: postData.user_id,
             community_id: postData.community_id,
           },

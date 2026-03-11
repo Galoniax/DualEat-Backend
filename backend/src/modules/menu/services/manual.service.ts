@@ -182,36 +182,4 @@ export class ManualService {
 
     return foods;
   }
-
-  async getFoodsByLocalWithVotes(localId: string) {
-    const foods = await prisma.food.findMany({
-      where: { local_id: localId },
-    });
-
-    const votes = await prisma.vote.findMany({
-      where: {
-        content_type: "food",
-        content_id: {
-          in: foods.map((food) => food.id),
-        },
-      },
-    });
-
-    return foods.map((food) => {
-      const upVotes = votes.filter(
-        (vote) => vote.content_id === food.id && vote.vote_type === VoteType.up
-      ).length;
-      const downVotes = votes.filter(
-        (vote) =>
-          vote.content_id === food.id && vote.vote_type === VoteType.down
-      ).length;
-
-      return {
-        ...food,
-        votes_up: upVotes,
-        votes_down: downVotes,
-        votes: undefined,
-      };
-    });
-  }
 }

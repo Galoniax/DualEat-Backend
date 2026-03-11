@@ -1,4 +1,4 @@
-import SessionService from "../../services/session.service";
+import SessionService from "../../core/services/session.service";
 import { ollamaConfig } from "../../core/config/config";
 
 import axios from "axios";
@@ -28,9 +28,9 @@ interface ChatMetadata {
 
 export class ChatSessionService {
   private readonly SESSION_PREFIX = "chat:";
-  
+
   private static instance: ChatSessionService;
-  
+
   private sessionService: SessionService;
 
   private constructor() {
@@ -79,7 +79,7 @@ export class ChatSessionService {
           stream: false,
           temperature: 0.7,
         },
-        { timeout: 5000 }
+        { timeout: 5000 },
       );
 
       let title = response.data?.message?.content || "";
@@ -120,7 +120,7 @@ export class ChatSessionService {
 
   async getChatDataById(
     user_id: string,
-    chat_id: string
+    chat_id: string,
   ): Promise<CHATData | null> {
     try {
       const sessionKey = `${this.SESSION_PREFIX}${this.hashUser(user_id)}/${chat_id}`;
@@ -172,7 +172,7 @@ export class ChatSessionService {
 
       return chats.sort(
         (a, b) =>
-          new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
+          new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime(),
       );
     } catch (error) {
       console.error("Error obteniendo chats del usuario:", error);
@@ -194,7 +194,7 @@ export class ChatSessionService {
     messages: ChatSessionData[],
     title?: string,
     exists: boolean = false,
-    activeRecipeId?: string
+    activeRecipeId?: string,
   ): Promise<CHATData> {
     if (!chatId) throw new Error("El ID del chat es requerido.");
     if (!userId) throw new Error("El ID de usuario es requerido.");
@@ -228,7 +228,7 @@ export class ChatSessionService {
 
         await this.sessionService.set(redisKey, JSON.stringify(chatData), ttl);
         console.log(
-          `${messages.length} mensajes agregados al chat ${chatId} (Total: ${chatData.messages.length})`
+          `${messages.length} mensajes agregados al chat ${chatId} (Total: ${chatData.messages.length})`,
         );
 
         return chatData;
@@ -246,11 +246,11 @@ export class ChatSessionService {
         await this.sessionService.set(
           redisKey,
           JSON.stringify(chatData),
-          defaultTtl
+          defaultTtl,
         );
 
         console.log(
-          `✅ Nuevo chat creado al agregar mensajes: ${chatId} - "${title || "Nueva conversación"}"`
+          `Nuevo chat creado al agregar mensajes: ${chatId} - "${title || "Nueva conversación"}"`,
         );
 
         return chatData;
@@ -263,7 +263,7 @@ export class ChatSessionService {
       throw new Error(
         `Error al agregar mensajes: ${
           error instanceof Error ? error.message : "Error desconocido"
-        }`
+        }`,
       );
     }
   }
@@ -271,7 +271,7 @@ export class ChatSessionService {
   async editTitle(
     chatId: string,
     userId: string,
-    title: string
+    title: string,
   ): Promise<CHATData | null> {
     try {
       const encryptedUserId = this.hashUser(userId);
@@ -286,7 +286,7 @@ export class ChatSessionService {
       await this.sessionService.set(
         redisKey,
         JSON.stringify(chatData),
-        await this.sessionService.getTtl(redisKey)
+        await this.sessionService.getTtl(redisKey),
       );
 
       console.log(`Chat actualizado: ${chatId} (Título: ${title})`);

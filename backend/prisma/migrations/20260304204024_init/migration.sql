@@ -1,23 +1,20 @@
 -- CreateEnum
-CREATE TYPE "public"."Role" AS ENUM ('user', 'admin');
+CREATE TYPE "public"."Role" AS ENUM ('USER', 'ADMIN');
 
 -- CreateEnum
-CREATE TYPE "public"."SubscriptionStatus" AS ENUM ('inactive', 'trial', 'active', 'cancelled');
+CREATE TYPE "public"."SubscriptionStatus" AS ENUM ('INACTIVE', 'TRIAL', 'ACTIVE', 'CANCELLED');
 
 -- CreateEnum
-CREATE TYPE "public"."ContentType" AS ENUM ('food', 'post', 'comment');
+CREATE TYPE "public"."ContentType" AS ENUM ('POST', 'COMMENT');
 
 -- CreateEnum
-CREATE TYPE "public"."VoteType" AS ENUM ('up', 'down');
+CREATE TYPE "public"."VoteType" AS ENUM ('UP', 'DOWN');
 
 -- CreateEnum
-CREATE TYPE "public"."OrderStatus" AS ENUM ('pending', 'confirmed', 'preparing', 'ready');
+CREATE TYPE "public"."OrderStatus" AS ENUM ('PENDING', 'PAID', 'COMPLETED', 'CANCELLED', 'READY');
 
 -- CreateEnum
-CREATE TYPE "public"."Visibility" AS ENUM ('public', 'private');
-
--- CreateEnum
-CREATE TYPE "public"."PostType" AS ENUM ('recipe', 'post');
+CREATE TYPE "public"."Visibility" AS ENUM ('PUBLIC', 'PRIVATE');
 
 -- CreateEnum
 CREATE TYPE "public"."LocalUserRole" AS ENUM ('admin', 'staff');
@@ -56,7 +53,7 @@ CREATE TABLE "public"."User" (
     "name" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "avatar_url" TEXT,
-    "role" "public"."Role" NOT NULL DEFAULT 'user',
+    "role" "public"."Role" NOT NULL DEFAULT 'USER',
     "active" BOOLEAN NOT NULL DEFAULT true,
     "verified" BOOLEAN NOT NULL DEFAULT false,
     "password_hash" TEXT,
@@ -64,7 +61,7 @@ CREATE TABLE "public"."User" (
     "reset_code" TEXT,
     "reset_expires_at" TIMESTAMP(3),
     "is_business" BOOLEAN NOT NULL DEFAULT false,
-    "subscription_status" "public"."SubscriptionStatus" NOT NULL DEFAULT 'inactive',
+    "subscription_status" "public"."SubscriptionStatus" NOT NULL DEFAULT 'INACTIVE',
     "trial_ends_at" TIMESTAMP(3),
     "notificationsPref" "public"."NotificationFrequency" NOT NULL DEFAULT 'ALWAYS',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -183,6 +180,7 @@ CREATE TABLE "public"."LocalReview" (
     "comment" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+    "order_id" TEXT,
 
     CONSTRAINT "LocalReview_pkey" PRIMARY KEY ("id")
 );
@@ -200,9 +198,8 @@ CREATE TABLE "public"."FoodCategory" (
 -- CreateTable
 CREATE TABLE "public"."Food" (
     "id" TEXT NOT NULL,
-    "slug" TEXT,
     "local_id" TEXT NOT NULL,
-    "category_id" INTEGER,
+    "category_id" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
     "price" DOUBLE PRECISION NOT NULL,
@@ -221,9 +218,9 @@ CREATE TABLE "public"."Promotion" (
     "id" TEXT NOT NULL,
     "local_id" TEXT NOT NULL,
     "food_id" TEXT,
-    "title" TEXT NOT NULL,
+    "title" TEXT,
     "description" TEXT,
-    "discount_pct" DOUBLE PRECISION,
+    "discount_pct" DOUBLE PRECISION NOT NULL,
     "starts_at" TIMESTAMP(3),
     "ends_at" TIMESTAMP(3),
     "active" BOOLEAN NOT NULL DEFAULT true,
@@ -252,8 +249,7 @@ CREATE TABLE "public"."Community" (
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL,
     "image_url" TEXT,
-    "theme_color" TEXT,
-    "visibility" "public"."Visibility" NOT NULL DEFAULT 'public',
+    "visibility" "public"."Visibility" NOT NULL DEFAULT 'PUBLIC',
     "total_members" INTEGER NOT NULL DEFAULT 0,
     "creator_id" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -345,7 +341,6 @@ CREATE TABLE "public"."Post" (
     "title" TEXT NOT NULL,
     "content" TEXT NOT NULL,
     "image_urls" TEXT[],
-    "type" "public"."PostType" NOT NULL,
     "votes_up" INTEGER NOT NULL DEFAULT 0,
     "votes_down" INTEGER NOT NULL DEFAULT 0,
     "total_comments" INTEGER NOT NULL DEFAULT 0,
@@ -396,13 +391,14 @@ CREATE TABLE "public"."Ingredient" (
 -- CreateTable
 CREATE TABLE "public"."Order" (
     "id" TEXT NOT NULL,
-    "user_id" TEXT NOT NULL,
+    "user_id" TEXT,
     "local_id" TEXT NOT NULL,
     "total" DOUBLE PRECISION NOT NULL,
-    "status" "public"."OrderStatus" NOT NULL DEFAULT 'pending',
+    "status" "public"."OrderStatus" NOT NULL DEFAULT 'PENDING',
     "payment_method" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+    "short_code" TEXT,
     "delivery_date" TIMESTAMP(3),
     "notes" TEXT,
 
@@ -417,7 +413,6 @@ CREATE TABLE "public"."OrderItem" (
     "quantity" INTEGER NOT NULL DEFAULT 1,
     "unit_price" DOUBLE PRECISION NOT NULL,
     "subtotal" DOUBLE PRECISION NOT NULL,
-    "notes" TEXT,
 
     CONSTRAINT "OrderItem_pkey" PRIMARY KEY ("id")
 );
@@ -497,7 +492,7 @@ CREATE INDEX "LocalUser_local_id_idx" ON "public"."LocalUser"("local_id");
 CREATE UNIQUE INDEX "LocalUser_user_id_local_id_key" ON "public"."LocalUser"("user_id", "local_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LocalReview_user_id_local_id_key" ON "public"."LocalReview"("user_id", "local_id");
+CREATE UNIQUE INDEX "LocalReview_order_id_key" ON "public"."LocalReview"("order_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "FoodCategory_name_key" ON "public"."FoodCategory"("name");
@@ -513,6 +508,9 @@ CREATE INDEX "Food_name_idx" ON "public"."Food"("name");
 
 -- CreateIndex
 CREATE INDEX "Food_category_id_idx" ON "public"."Food"("category_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Promotion_food_id_key" ON "public"."Promotion"("food_id");
 
 -- CreateIndex
 CREATE INDEX "Promotion_discount_pct_idx" ON "public"."Promotion"("discount_pct");
@@ -566,6 +564,9 @@ CREATE UNIQUE INDEX "UnitOfMeasure_abbreviation_key" ON "public"."UnitOfMeasure"
 CREATE UNIQUE INDEX "Ingredient_name_key" ON "public"."Ingredient"("name");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Order_local_id_short_code_key" ON "public"."Order"("local_id", "short_code");
+
+-- CreateIndex
 CREATE INDEX "Subscription_mp_preapproval_id_idx" ON "public"."Subscription"("mp_preapproval_id");
 
 -- CreateIndex
@@ -611,10 +612,13 @@ ALTER TABLE "public"."LocalReview" ADD CONSTRAINT "LocalReview_user_id_fkey" FOR
 ALTER TABLE "public"."LocalReview" ADD CONSTRAINT "LocalReview_local_id_fkey" FOREIGN KEY ("local_id") REFERENCES "public"."Local"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "public"."LocalReview" ADD CONSTRAINT "LocalReview_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "public"."Order"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "public"."Food" ADD CONSTRAINT "Food_local_id_fkey" FOREIGN KEY ("local_id") REFERENCES "public"."Local"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."Food" ADD CONSTRAINT "Food_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "public"."FoodCategory"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "public"."Food" ADD CONSTRAINT "Food_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "public"."FoodCategory"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."Promotion" ADD CONSTRAINT "Promotion_local_id_fkey" FOREIGN KEY ("local_id") REFERENCES "public"."Local"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -671,7 +675,7 @@ ALTER TABLE "public"."PostComment" ADD CONSTRAINT "PostComment_post_id_fkey" FOR
 ALTER TABLE "public"."PostComment" ADD CONSTRAINT "PostComment_parent_comment_id_fkey" FOREIGN KEY ("parent_comment_id") REFERENCES "public"."PostComment"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."Order" ADD CONSTRAINT "Order_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."Order" ADD CONSTRAINT "Order_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."Order" ADD CONSTRAINT "Order_local_id_fkey" FOREIGN KEY ("local_id") REFERENCES "public"."Local"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -30,43 +30,38 @@ generator erd {
 
 // Enums
 enum Role {
-  user
-  admin
+  USER
+  ADMIN
 }
 
 enum SubscriptionStatus {
-  inactive
-  trial
-  active
-  cancelled
+  INACTIVE
+  TRIAL
+  ACTIVE
+  CANCELLED
 }
 
 enum ContentType {
-  food
-  post
-  comment
+  POST
+  COMMENT
 }
 
 enum VoteType {
-  up
-  down
+  UP
+  DOWN
 }
 
 enum OrderStatus {
-  pending
-  confirmed
-  preparing
-  ready
+  PENDING // Nuevo pedido, esperando pago o confirmación
+  PAID // Pedido pagado, esperando preparación
+  COMPLETED // Pedido completado y entregado
+  CANCELLED // Pedido cancelado por el usuario o el local
+  READY // Pedido listo para pagar
 }
 
 enum Visibility {
-  public
-  private
-}
-
-enum PostType {
-  recipe
-  post
+  PUBLIC
+  PRIVATE
 }
 
 enum LocalUserRole {
@@ -144,12 +139,12 @@ enum SubscriptionPlan {
 // ========================================================
 model User {
   // 1. IDENTIFICACIÓN Y PERFIL
-  id         String  @id @default(cuid()) @map("id")
+  id         String  @id @default(nanoid(14)) @map("id")
   slug       String
   name       String
   email      String  @unique
   avatar_url String?
-  role       Role    @default(user)
+  role       Role    @default(USER)
   active     Boolean @default(true)
   verified   Boolean @default(false)
 
@@ -161,7 +156,7 @@ model User {
 
   // 3. CONFIGURACIÓN Y NEGOCIO
   is_business         Boolean               @default(false)
-  subscription_status SubscriptionStatus    @default(inactive)
+  subscription_status SubscriptionStatus    @default(INACTIVE)
   trial_ends_at       DateTime?
   notificationsPref   NotificationFrequency @default(ALWAYS)
 
@@ -225,7 +220,7 @@ model Notification {
 // ========================================================
 
 model Local {
-  id          String  @id @default(cuid()) @map("id")
+  id          String  @id @default(nanoid(10)) @map("id")
   slug        String  @unique
   name        String
   description String?
@@ -335,17 +330,20 @@ model LocalReview {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  @@unique([user_id, local_id])
+  order    Order?  @relation(fields: [order_id], references: [id])
+  order_id String? @unique
+
+  // @@unique([user_id, local_id]) Una por pedido, no por usuario-local para permitir múltiples reseñas si hay múltiples pedidos
 }
 
 // ========================================================
 // MODELO DE COMIDAS Y CATEGORÍAS
 // ========================================================
 model FoodCategory {
-  id          Int           @id @default(autoincrement())
-  name        String        @unique
-  tipo        TypesCategory
-  icon_url    String?
+  id       Int           @id @default(autoincrement())
+  name     String        @unique
+  tipo     TypesCategory
+  icon_url String?
 
   foods            Food[]
   user_preferences UserPreference[]
@@ -356,19 +354,15 @@ model FoodCategory {
 }
 
 model Food {
-  id   String  @id @default(cuid()) @map("id")
-  slug String?
-
+  id          String @id @default(nanoid(10)) @map("id")
   local_id    String
-  category_id Int?
+  category_id Int
 
   name        String
   description String?
-
-  price Float
-
-  image_url String?
-  available Boolean @default(true)
+  price       Float
+  image_url   String?
+  available   Boolean @default(true)
 
   votes_up   Int @default(0)
   votes_down Int @default(0)
@@ -376,11 +370,11 @@ model Food {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  local    Local         @relation(fields: [local_id], references: [id])
-  category FoodCategory? @relation(fields: [category_id], references: [id])
+  local    Local        @relation(fields: [local_id], references: [id])
+  category FoodCategory @relation(fields: [category_id], references: [id])
 
   order_items OrderItem[]
-  promotions  Promotion[]
+  promotions  Promotion?
 
   @@index([local_id])
   @@index([name])
@@ -388,15 +382,15 @@ model Food {
 }
 
 model Promotion {
-  id String @id @default(cuid())
+  id String @id @default(nanoid(10))
 
   local_id String
-  food_id  String?
+  food_id  String? @unique
 
-  title       String
+  title       String?
   description String?
 
-  discount_pct Float?
+  discount_pct Float
 
   starts_at DateTime?
   ends_at   DateTime?
@@ -442,8 +436,6 @@ model Vote {
   created_at   DateTime    @default(now())
   updated_at   DateTime    @updatedAt
 
-  //food Food? @relation("FoodVotes", fields: [content_id], references: [id])
-
   @@unique([user_id, content_type, content_id])
 }
 
@@ -451,13 +443,12 @@ model Vote {
 // MODELO DE COMUNIDADES
 // ========================================================
 model Community {
-  id            String     @id @default(cuid()) @map("id")
+  id            String     @id @default(nanoid(10)) @map("id")
   slug          String     @unique
   name          String
   description   String
   image_url     String?
-  theme_color   String?
-  visibility    Visibility @default(public)
+  visibility    Visibility @default(PUBLIC)
   total_members Int        @default(0)
   creator       User       @relation("Creator", fields: [creator_id], references: [id])
   creator_id    String
@@ -513,7 +504,7 @@ model CommunityMember {
 // MODELO DE RECETAS
 // ========================================================
 model Recipe {
-  id          String @id @default(cuid()) @map("id")
+  id          String @id @default(nanoid(10)) @map("id")
   slug        String
   user        User   @relation(fields: [user_id], references: [id])
   user_id     String
@@ -561,7 +552,7 @@ model RecipeStep {
 // ========================================================
 
 model Post {
-  id             String    @id @default(cuid()) @map("id")
+  id             String    @id @default(nanoid(10)) @map("id")
   slug           String
   user           User      @relation(fields: [user_id], references: [id])
   user_id        String
@@ -570,7 +561,7 @@ model Post {
   title          String
   content        String
   image_urls     String[]
-  type           PostType
+
   votes_up       Int       @default(0)
   votes_down     Int       @default(0)
   total_comments Int       @default(0)
@@ -628,32 +619,36 @@ model Ingredient {
 // MODELO DE PEDIDOS Y SUS DETALLES
 // ========================================================
 model Order {
-  id             String      @id @default(cuid()) @map("id")
-  user           User        @relation(fields: [user_id], references: [id])
-  user_id        String
+  id             String      @id @default(nanoid(10)) @map("id")
+  user           User?       @relation(fields: [user_id], references: [id])
+  user_id        String?
   local          Local       @relation(fields: [local_id], references: [id])
   local_id       String
   total          Float
-  status         OrderStatus @default(pending)
+  status         OrderStatus @default(PENDING)
   payment_method String?
   created_at     DateTime    @default(now())
   updated_at     DateTime    @updatedAt
-  delivery_date  DateTime?
-  notes          String?
+
+  short_code    String?
+  delivery_date DateTime?
+  notes         String?
 
   order_items OrderItem[]
+  review      LocalReview?
+
+  @@unique([local_id, short_code])
 }
 
 model OrderItem {
-  id         String  @id @default(cuid()) @map("id")
-  order      Order   @relation(fields: [order_id], references: [id])
+  id         String @id @default(cuid()) @map("id")
+  order      Order  @relation(fields: [order_id], references: [id])
   order_id   String
-  food       Food    @relation(fields: [food_id], references: [id])
+  food       Food   @relation(fields: [food_id], references: [id])
   food_id    String
-  quantity   Int     @default(1)
+  quantity   Int    @default(1)
   unit_price Float
   subtotal   Float
-  notes      String?
 }
 
 // ========================================================

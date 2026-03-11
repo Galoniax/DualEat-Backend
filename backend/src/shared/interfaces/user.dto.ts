@@ -1,4 +1,4 @@
-import { Role } from "@prisma/client";
+import { LocalUserRole, Role } from "@prisma/client";
 
 // Datos de sesión del usuario almacenados en Redis
 export interface UserSessionData {
@@ -13,11 +13,22 @@ export interface UserSessionData {
   subscription_status: string;
   trial_ends_at: Date | null;
   avatar_url: string | null;
+  verified: boolean;
+  
+  workplaces?: Workplace[]; 
 
   loginAt: Date;
   lastActivity: Date;
   deviceId?: string;
 }
+
+export interface Workplace {
+  id: string;
+  name: string;
+  slug: string;
+  role: LocalUserRole;
+}
+
 
 // Payload del Access Token (JWT)
 export interface SecureTokenPayload {

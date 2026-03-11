@@ -7,6 +7,7 @@ export { default as Review } from "./modules/review/review.routes";
 export { default as Menu } from "./modules/menu/routes/menu.routes";
 export { default as FoodCategory } from "./modules/menu/routes/food-category.routes";
 export { default as Local } from "./modules/local/routes/local.routes";
+export { default as Order } from "./modules/order/routes/order.routes";
 
 // --- Módulos de Comunidad ---
 export { default as Community } from "./modules/community/routes/community.routes";

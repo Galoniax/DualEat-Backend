@@ -1,10 +1,11 @@
+import { Visibility } from "@prisma/client";
+
 export interface CreateCommunityDTO {
   name: string;
   slug?: string;
   description: string;
   image_url?: string;
-  theme_color?: string;
-  visibility: "public" | "private"; 
+  visibility: Visibility; 
   creator_id: string;
   selectedTags: number[]; 
 }

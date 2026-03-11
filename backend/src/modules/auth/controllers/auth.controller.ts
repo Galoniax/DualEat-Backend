@@ -30,11 +30,17 @@ export class AuthController {
 
   constructor(private userService: UserService) {}
 
-  // 1. INICIO DE SESIÓN
+  // =========================================================
+  // INICIO DE SESIÓN
+  // =========================================================
   async login(req: Request, res: Response) {
     try {
-      const { email, password, remember, recaptcha, deviceId } =
-        req.body;
+      const { email, password, remember, recaptcha, deviceId } = req.body;
+
+      const params = new URLSearchParams();
+  
+      params.append("secret", process.env.RECAPTCHA_CLOUDFARE_SECRET_KEY || "");
+      params.append("response", recaptcha);
 
       if (!email || !password) {
         return res.status(400).json({
@@ -60,18 +66,17 @@ export class AuthController {
         });
       }
 
-      const recaptchaResponse = await axios.post(
-        "https://www.google.com/recaptcha/api/siteverify",
-        null,
+      const reCAPTCHA_Response = await axios.post(
+        "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+        params.toString(),
         {
-          params: {
-            secret: RECAPTCHA_SECRET_KEY,
-            response: recaptcha,
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
           },
         },
       );
 
-      if (!recaptchaResponse.data.success) {
+      if (!reCAPTCHA_Response.data.success) {
         return res.status(403).json({
           success: false,
           message: "Fallo en la verificación reCAPTCHA. Inténtalo de nuevo.",
@@ -114,10 +119,12 @@ export class AuthController {
         provider: user.provider,
         isBusiness: user.is_business,
         active: user.active,
+        verified: user.verified,
         subscription_status: user.subscription_status,
         trial_ends_at: user.trial_ends_at,
         avatar_url: user.avatar_url ?? null,
-        
+        workplaces: user.workplaces || [],
+
         loginAt: new Date(),
         lastActivity: new Date(),
         deviceId: deviceId,
@@ -146,7 +153,9 @@ export class AuthController {
         maxAge: cookieMaxAge,
       };
 
-      console.log(`Login exitoso. User: ${email}, Device: ${deviceId}, Remember: ${remember}`);
+      console.log(
+        `Login exitoso. User: ${email}, Device: ${deviceId}, Remember: ${remember}`,
+      );
 
       // ============================================================
       // 6. RESPUESTA FINAL
@@ -168,8 +177,9 @@ export class AuthController {
       });
     }
   }
-
-  // 2. REGISTRO INICIAL
+  // =========================================================
+  // REGISTRO INICIAL
+  // =========================================================
   async register(req: Request, res: Response) {
     try {
       // ==================== VALIDACIÓN DE INPUTS =====================
@@ -218,7 +228,8 @@ export class AuthController {
       return res.status(200).json({
         success: true,
         message: "Credenciales válidas. Continuando a preferencias.",
-        next_step: `/onboarding?tempToken=${tempToken}`,
+        //next_step: `/onboarding?tempToken=${tempToken}`,
+        next_step: `?tempToken=${tempToken}`,
       });
     } catch (error) {
       console.error("Register Error:", error);
@@ -229,7 +240,9 @@ export class AuthController {
     }
   }
 
-  // 3. COMPLETAR PERFIL Y CREAR USUARIO
+  // =========================================================
+  // COMPLETAR PERFIL Y CREAR USUARIO
+  // =========================================================
   async completeProfile(req: Request, res: Response) {
     try {
       // ==================== EXTRACCIÓN =====================
@@ -302,6 +315,8 @@ export class AuthController {
         provider: user.provider,
         isBusiness: user.is_business,
         active: user.active,
+        workplaces: [],
+        verified: user.verified,
         subscription_status: user.subscription_status,
         trial_ends_at: user.trial_ends_at,
         avatar_url: user.avatar_url,
@@ -329,8 +344,6 @@ export class AuthController {
         maxAge: 14 * 24 * 60 * 60 * 1000,
       };
 
-      console.log(res);
-
       return res
         .cookie("accessToken", accessToken, cookieOptions)
         .status(201)
@@ -340,8 +353,6 @@ export class AuthController {
           user: userSessionData,
           token: accessToken,
         });
-
-        
     } catch (e) {
       console.error("Error al completar el perfil:", e);
       return res.status(500).json({
@@ -351,7 +362,9 @@ export class AuthController {
     }
   }
 
-  // 4. LOGOUT
+  // =========================================================
+  // LOGOUT
+  // =========================================================
   async logout(req: Request, res: Response) {
     try {
       let token = req.cookies.accessToken;

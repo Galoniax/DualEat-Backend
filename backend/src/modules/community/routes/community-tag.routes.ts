@@ -20,7 +20,7 @@ router.get("/categories", controller.getAllCategories.bind(controller));
 
 // 1. Obtener todas las etiquetas
 // ========================================================= 
-router.get("/", controller.getAll.bind(controller));
+router.get("/tags", controller.getAll.bind(controller));
 
 // 2. Obtener todas las etiquetas por categorias (por id de la categoria)
 // =========================================================
@@ -36,6 +36,6 @@ router.put("/tag/update", generalLimiter, isAuthenticated, controller.update.bin
 
 // 5. Eliminar una etiqueta
 // =========================================================
-router.delete("/tag/update", generalLimiter, isAuthenticated, controller.delete.bind(controller));
+router.delete("/tag/delete", generalLimiter, isAuthenticated, controller.delete.bind(controller));
 
 export default router;

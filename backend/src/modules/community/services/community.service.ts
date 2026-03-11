@@ -22,7 +22,6 @@ export class CommunityService {
               slug: slug,
               description: data.description,
               image_url: data.image_url,
-              theme_color: data.theme_color,
               visibility: data.visibility,
               creator_id: data.creator_id,
               total_members: 1,
@@ -343,7 +342,7 @@ export class CommunityService {
       const votes = await prisma.vote.findMany({
         where: {
           user_id: user_id,
-          content_type: "post",
+          content_type: "POST",
           content_id: {
             in: posts.map((post) => post.id),
           },

@@ -4,7 +4,7 @@ import { ollamaConfig } from "../../core/config/config";
 import { RecipeService } from "../recipe/recipe.service";
 
 import ChatSessionService from "./chat-session.service";
-import SessionService from "../../services/session.service";
+import SessionService from "../../core/services/session.service";
 
 import { extractJSON } from "../../shared/utils/aiHelpers";
 
@@ -68,7 +68,7 @@ export class ChatController {
         console.log(`🔎 Buscando en DB: ${intentAction.query}`);
 
         const recipes = await this.recipeService.searchRecipes(
-          intentAction.query
+          intentAction.query,
         );
 
         if (recipes.length > 0) {
@@ -131,12 +131,12 @@ export class ChatController {
             },
           ],
           title,
-          exists
+          exists,
         )
         .catch((err: any) => {
           console.error(
             "Error guardando mensajes de chat de forma asíncrona:",
-            err
+            err,
           );
         });
 
@@ -184,7 +184,7 @@ export class ChatController {
         `Ingredientes: ${(recipe.ingredients || [])
           .map(
             (ing: any) =>
-              `${ing.ingredient?.name || ing.name} (${ing.quantity || ""} ${ing.unit_of_measure?.name || ""})`
+              `${ing.ingredient?.name || ing.name} (${ing.quantity || ""} ${ing.unit_of_measure?.name || ""})`,
           )
           .join(", ")}`,
         `Pasos: ${(recipe.steps || [])
@@ -239,12 +239,12 @@ export class ChatController {
           ],
           title,
           exists,
-          recipe.id
+          recipe.id,
         )
         .catch((err: any) => {
           console.error(
             "Error guardando mensajes de chat de forma asíncrona:",
-            err
+            err,
           );
         });
 
@@ -256,7 +256,7 @@ export class ChatController {
       } else {
         console.error(
           "Error posterior al envío de respuesta (asíncrono):",
-          error
+          error,
         );
       }
     }
@@ -273,7 +273,7 @@ export class ChatController {
     try {
       const chatSession = await this.chatSessionService.getChatDataById(
         String(user_id),
-        String(chat_id)
+        String(chat_id),
       );
       res.status(200).json({ success: true, data: chatSession });
     } catch (error: any) {
@@ -286,7 +286,7 @@ export class ChatController {
     const user_id = (req as any).user?.id;
     try {
       const chatSessions = await this.chatSessionService.getUserChats(
-        String(user_id)
+        String(user_id),
       );
       res.status(200).json({ success: true, data: chatSessions });
     } catch (error: any) {
@@ -303,7 +303,7 @@ export class ChatController {
       const chatSession = await this.chatSessionService.editTitle(
         String(chat_id),
         String(user_id),
-        String(title)
+        String(title),
       );
 
       if (!chatSession) {
@@ -333,7 +333,7 @@ export class ChatController {
 
       const result = await this.chatSessionService.deleteChat(
         chat_id as string,
-        user_id
+        user_id,
       );
 
       if (result) {
@@ -348,7 +348,7 @@ export class ChatController {
       } else {
         console.error(
           "Error posterior al envío de respuesta (asíncrono):",
-          error
+          error,
         );
       }
     }
