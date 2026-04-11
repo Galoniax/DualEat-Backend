@@ -11,21 +11,7 @@ const ingredientsFilePath = join(__dirname, "../..", "ingredientes.txt");
 function generateSlug(text: string): string {
   return slugify(text, { lower: true, strict: true, locale: "es" });
 }
-// =================================================================
-// DATOS PARA UNIDADES DE MEDIDA
-const unitsOfMeasure = [
-  { name: "gramos", abbreviation: "g" },
-  { name: "kilogramos", abbreviation: "kg" },
-  { name: "mililitros", abbreviation: "ml" },
-  { name: "litros", abbreviation: "l" },
-  { name: "cucharadita", abbreviation: "cdita" },
-  { name: "cucharada", abbreviation: "cda" },
-  { name: "taza", abbreviation: "taza" },
-  { name: "unidad", abbreviation: "u" },
-  { name: "pizca", abbreviation: "pizca" },
-  { name: "paquete", abbreviation: "paquete" },
-  { name: "opcional", abbreviation: "opcional" },
-];
+
 // DATOS PARA COMUNIDADES Y PREFERENCIAS DE USUARIOS
 const tagData = [
   {
@@ -287,16 +273,7 @@ const foodCategories = [
 
 async function main() {
   try {
-    // ---- 1. Siembra de la tabla UnitOfMeasure ----
-    await prisma.unitOfMeasure.createMany({
-      data: unitsOfMeasure,
-      skipDuplicates: true,
-    });
-    console.log(
-      `${unitsOfMeasure.length} unidades de medida han sido insertadas.`,
-    );
-
-    // ---- 2. Siembra de la tabla Ingredient ----
+    // ---- 1. Siembra de la tabla Ingredient ----
     const ingredientsFileContent = readFileSync(ingredientsFilePath, "utf-8");
     const ingredientNames = ingredientsFileContent
       .split("\n")
@@ -315,7 +292,7 @@ async function main() {
       `${ingredientsToCreate.length} ingredientes han sido insertados.`,
     );
 
-    // ---- 3. Siembra de FoodCategory ----
+    // ---- 2. Siembra de FoodCategory ----
     for (const category of foodCategories) {
       const existingCategory = await prisma.foodCategory.findFirst({
         where: { name: category.name },
@@ -329,7 +306,7 @@ async function main() {
     }
     console.log("Food Category completado");
 
-    // ---- 4. Siembra de TagCategory + CommunityTag ----
+    // ---- 3. Siembra de TagCategory + CommunityTag ----
     for (const item of tagData) {
       const categoryData = {
         ...item.category,
@@ -372,7 +349,7 @@ async function main() {
     }
     console.log("TagCategory y CommunityTag completado");
 
-    // ---- 5. SEED DE LOCALES  ----
+    // ---- 4. SEED DE LOCALES  ----
     const localsData = [
       {
         name: "Local El Fogon Centro",

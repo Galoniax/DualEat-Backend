@@ -9,9 +9,9 @@ import { QrService } from "../../../core/services/qr.service";
 import { CalendarService } from "../service/calendar.service";
 import { DiscoveryService } from "../service/discovery.service";
 
-import { LocalController } from "../controller/local.controller";
-import { AgendaController } from "../controller/agenda.controller";
-import { DiscoveryController } from "../controller/discovery.controller";
+import { LocalController } from "../controllers/local.controller";
+import { AgendaController } from "../controllers/agenda.controller";
+import { DiscoveryController } from "../controllers/discovery.controller";
 import { FoodService } from "../../menu/services/food.service";
 
 const router = Router();

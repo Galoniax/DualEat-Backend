@@ -5,54 +5,28 @@ export class ManualService {
   async createFood(
     localId: string,
     data: {
-      category_id?: number;
-      local_menu_category_id?: number; // Agregar este campo
+      category_id: number;
       name: string;
       description?: string;
       price: number;
-      discount?: boolean;
       image_url?: string;
       available?: boolean;
-    }
+    },
   ) {
-    const local = await prisma.local.findUnique({
-      where: { id: localId },
-    });
-    if (!local) {
-      throw new Error("Local not found");
-    }
-
-    // Validar que solo se envíe uno de los dos tipos de categoría
-    if (data.category_id && data.local_menu_category_id) {
-      throw new Error("Cannot set both category_id and local_menu_category_id");
-    }
-
-    // Si se envía local_menu_category_id, verificar que pertenezca al local
-    if (data.local_menu_category_id) {
-      const localCategory = await prisma.localMenuCategory.findFirst({
-        where: {
-          id: data.local_menu_category_id,
-          local_id: localId,
-        },
-      });
-      if (!localCategory) {
-        throw new Error(
-          "Local menu category not found or doesn't belong to this local"
-        );
-      }
-    }
-
     const food = await prisma.food.create({
       data: {
-        local_id: localId,
-        category_id: data.category_id ?? null,
-        local_menu_category_id: data.local_menu_category_id ?? null,
         name: data.name,
         description: data.description,
         price: data.price,
-        discount: data.discount ?? false,
         image_url: data.image_url ?? null,
         available: data.available ?? true,
+
+        local: {
+          connect: { id: localId },
+        },
+        category: {
+          connect: { id: data.category_id },
+        },
       },
     });
 
@@ -63,7 +37,7 @@ export class ManualService {
   async updateFood(
     foodId: string,
     data: {
-      category_id?: number;
+      category_id: number;
       local_menu_category_id?: number;
       name?: string;
       description?: string;
@@ -71,7 +45,7 @@ export class ManualService {
       discount?: boolean;
       image_url?: string;
       available?: boolean;
-    }
+    },
   ) {
     const existingFood = await prisma.food.findUnique({
       where: { id: foodId },
@@ -95,7 +69,7 @@ export class ManualService {
       });
       if (!localCategory) {
         throw new Error(
-          "Local menu category not found or doesn't belong to this local"
+          "Local menu category not found or doesn't belong to this local",
         );
       }
     }
@@ -133,7 +107,7 @@ export class ManualService {
       discount?: boolean;
       image_url?: string;
       available?: boolean;
-    }>
+    }>,
   ) {
     const local = await prisma.local.findUnique({
       where: { id: localId },
@@ -157,7 +131,7 @@ export class ManualService {
 
       if (validCategories.length !== localCategoryIds.length) {
         throw new Error(
-          "Some local menu categories don't belong to this local"
+          "Some local menu categories don't belong to this local",
         );
       }
     }
@@ -176,8 +150,8 @@ export class ManualService {
             image_url: dish.image_url ?? null,
             available: dish.available ?? true,
           },
-        })
-      )
+        }),
+      ),
     );
 
     return foods;

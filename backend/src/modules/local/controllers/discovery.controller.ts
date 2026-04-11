@@ -96,7 +96,7 @@ export class DiscoveryController {
   // OBTENER LOCAL
   // =========================================================
   getLocal = async (req: Request, res: Response) => {
-    const { slug } = req.params;
+    const { slug } = req.params as { slug: string };
 
     if (!slug || typeof slug !== "string") {
       return res
@@ -124,7 +124,7 @@ export class DiscoveryController {
   // OBTENER REVIEWS DE UN LOCAL
   // =========================================================
   getReviews = async (req: Request, res: Response) => {
-    const { slug } = req.params;
+    const { slug } = req.params as { slug: string };
     const { page } = req.query;
 
     try {

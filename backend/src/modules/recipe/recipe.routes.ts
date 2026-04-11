@@ -9,29 +9,28 @@ const router = Router();
 const service = new RecipeService();
 const controller = new RecipeController(service);
 
-
 // 1. Obtener todos los ingredientes
 // =========================================================
 router.get("/ingredients", controller.getAllIngredients.bind(controller));
 
-// 2. Obtener todas las unidades
-// =========================================================
-router.get("/units", controller.getAllUnits.bind(controller));
-
-// 3. Obtener receta por name (Validation de receta) // Si el usuario postea la misma receta en la misma comunidad con mismo nombre
-// =========================================================
-router.get("/", isAuthenticated, controller.getRecipeValidation.bind(controller));
-
-// 4. Obtener recetas del usuario
+// 2. Obtener recetas del usuario
 // =========================================================
 router.get(
   "/user",
   isAuthenticated,
-  controller.getUserRecipes.bind(controller)
+  controller.getUserRecipes.bind(controller),
 );
 
-// 5. Obtener receta por Slug
+// 3. Obtener receta por Id
 // =========================================================
-router.get("/slug", controller.getRecipeBySlug.bind(controller));
+router.get("/:id", controller.getById.bind(controller));
+
+// 4. Obtener recetas por Ids
+// =========================================================
+router.get("/", controller.getByIds.bind(controller));
+
+// 5. Buscar recetas por nombre (PAGINATION)
+// =========================================================
+router.get("/search", controller.searchRecipes.bind(controller));
 
 export default router;

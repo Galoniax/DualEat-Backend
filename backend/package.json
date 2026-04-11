@@ -32,6 +32,7 @@
     "express-rate-limit": "^8.1.0",
     "express-session": "^1.18.2",
     "fs": "^0.0.1-security",
+    "groq-sdk": "^1.1.2",
     "ioredis": "^5.7.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",

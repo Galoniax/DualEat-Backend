@@ -3,7 +3,7 @@ import { Router } from "express";
 import { PostController } from "./post.controller";
 
 import { isAuthenticated } from "../../core/middlewares/isAuthenticated";
-import { generalLimiter } from "../../core/middlewares/rateLimiter";
+import { limiter } from "../../core/middlewares/rateLimiter";
 
 import multer from "multer";
 import { PostService } from "./post.service";
@@ -20,7 +20,7 @@ const controller = new PostController(service);
 // =========================================================
 router.post(
   "/create",
-  generalLimiter,
+  limiter(false),
   isAuthenticated,
   upload.any(),
   controller.create.bind(controller)
@@ -30,15 +30,15 @@ router.post(
 // =========================================================
 router.get("/", isAuthenticated, controller.getAll.bind(controller));
 
-// 3. Obtener post por slug (slug de la comunidad)
+// 3. Obtener post por id
 // =========================================================
-router.get("/slug", isAuthenticated, controller.getBySlug.bind(controller));
+router.get("/:id", isAuthenticated, controller.getById.bind(controller));
 
 // 4. Crear comentario para un post
 // =========================================================
 router.post(
   "/comment",
-  generalLimiter,
+  limiter(false),
   isAuthenticated,
   controller.createComment.bind(controller)
 );

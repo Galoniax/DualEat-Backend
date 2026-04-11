@@ -1,4 +1,4 @@
-import { UserSessionData } from "../../../shared/interfaces/user.dto";
+import { UserSessionData } from "../../../shared/interfaces/dto/user.dto";
 import SessionService from "../../../core/services/session.service";
 
 export class AuthSessionService {

@@ -72,39 +72,40 @@ export class MenuController {
   createFood = async (req: Request, res: Response) => {
     try {
       const localId = req.params.localId;
+
       if (typeof localId !== "string" || !localId) {
-        return res.status(400).json({ error: "Invalid localId" });
+        return res.status(400).json({ error: "Local inválido" });
       }
 
       const {
         category_id,
-        local_menu_category_id,
         name,
         description,
         price,
-        discount,
         image_url,
         available,
       } = req.body;
 
-      if (!name || !price) {
-        return res.status(400).json({ error: "Name and price are required" });
+      if (!name || !price || !category_id) {
+        return res.status(400).json({ error: "Datos incompletos" });
       }
 
       const food = await this.manualService.createFood(localId, {
         category_id,
-        local_menu_category_id,
         name,
         description,
         price,
-        discount,
         image_url,
         available,
       });
 
+      if (!food) {
+        return res.status(400).json({ error: "Error al crear el plato" });
+      }
+
       return res.status(201).json(food);
-    } catch (error: any) {
-      return res.status(500).json({ error: error.message });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
     }
   };
 

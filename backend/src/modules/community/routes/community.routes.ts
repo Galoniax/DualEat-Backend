@@ -2,7 +2,7 @@ import { Router } from "express";
 import { CommunityController } from "../controllers/community.controller";
 
 import { isAuthenticated } from "../../../core/middlewares/isAuthenticated";
-import { generalLimiter } from "../../../core/middlewares/rateLimiter";
+import { limiter } from "../../../core/middlewares/rateLimiter";
 
 import multer from "multer";
 import { CommunityService } from "../services/community.service";
@@ -30,37 +30,47 @@ router.get("/communities/tag", controller.getByTag.bind(controller));
 // =========================================================
 router.post(
   "/create",
-  generalLimiter,
+  limiter(false),
   isAuthenticated,
   upload.fields([
     { name: "banner", maxCount: 1 },
     { name: "icon", maxCount: 1 },
   ]),
-  controller.create.bind(controller)
+  controller.create.bind(controller),
 );
 
 // 5. Unirse a comunidad
 // =========================================================
-router.post("/join", generalLimiter, isAuthenticated, controller.join.bind(controller));
+router.post(
+  "/join",
+  limiter(false),
+  isAuthenticated,
+  controller.join.bind(controller),
+);
 
 // 6. Salir de comunidad
 // =========================================================
-router.post("/leave", generalLimiter, isAuthenticated, controller.leave.bind(controller));
+router.post(
+  "/leave",
+  limiter(false),
+  isAuthenticated,
+  controller.leave.bind(controller),
+);
 
 // 7.Obtener las comunidades de un usuario
 // =========================================================
-router.get("/user", isAuthenticated, controller.getUserCommunities.bind(controller));
+router.get(
+  "/user",
+  isAuthenticated,
+  controller.getUserCommunities.bind(controller),
+);
 
 // 8. Obtener posts de una comunidad
 // =========================================================
 router.get("/posts", isAuthenticated, controller.getPosts.bind(controller));
 
-
-
 router.get("/recommended", controller.getRecommended.bind(controller));
 router.get("/popular", controller.getPopular.bind(controller));
 router.get("/trending", controller.getTrending.bind(controller));
-
-
 
 export default router;

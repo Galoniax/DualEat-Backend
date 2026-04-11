@@ -1,115 +1,100 @@
 import { prisma } from "../../core/database/prisma/prisma";
 
-import { AskAI, PaginatedResponse } from "../../shared/interfaces/recipe.dto";
-
 export class RecipeService {
-  
-  /** GET INGREDIENTS */
+  // =========================================================
+  // OBTENER INGREDIENTES
+  // =========================================================
   async getAllIngredients() {
     try {
-      const result = await prisma.ingredient.findMany();
-      return result;
-    } catch (error) {
-      throw new Error(`Error al obtener ingredientes: ${error}`);
-    }
-  }
-
-  /** GET UNITS */
-  async getAllUnits() {
-    try {
-      const result = await prisma.unitOfMeasure.findMany({
-        orderBy: { name: "asc" },
+      const result = await prisma.ingredient.findMany({
+        select: {
+          id: true,
+          name: true,
+        },
       });
       return result;
-    } catch (error) {
-      throw new Error(`Error al obtener unidades: ${error}`);
+    } catch (e) {
+      return null;
     }
   }
 
-  /** GET RECIPE BY NAME (Validation) */
-  async getRecipeValidation(name: string, userId: string, communityId: string) {
+  // =========================================================
+  // OBTENER RECETA POR ID
+  // =========================================================
+  async getById(id: string) {
     try {
-      const result = await prisma.recipe.findFirst({
-        where: {
-          user_id: userId,
-          name: {
-            equals: name,
-            mode: "insensitive",
+      const [recipe, votes] = await Promise.all([
+        prisma.recipe.findUnique({
+          where: { id },
+          include: {
+            ingredients: {
+              include: {
+                ingredient: true,
+              },
+            },
+            steps: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                avatar_url: true,
+                slug: true,
+              },
+            },
           },
-          posts: {
-            some: {
-              community_id: communityId,
+        }),
+        prisma.post.aggregate({
+          _sum: {
+            votes_up: true,
+            votes_down: true,
+          },
+          where: {
+            recipe_id: id,
+          },
+        }),
+      ]);
+
+      return {
+        ...recipe,
+        votes_up: votes._sum.votes_up,
+        votes_down: votes._sum.votes_down,
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // =========================================================
+  // OBTENER RECETAS POR IDs
+  // =========================================================
+  async getByIds(ids: string[]) {
+    try {
+      const result = await prisma.recipe.findMany({
+        where: { id: { in: ids } },
+        select: {
+          id: true,
+          name: true,
+          main_image: true,
+          total_time: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              avatar_url: true,
+              slug: true,
             },
           },
         },
       });
       return result;
-    } catch (error) {
-      throw new Error(`Error al obtener receta: ${error}`);
+    } catch (e) {
+      return null;
     }
   }
 
-  /** GET RECIPE BY ID */
-  async getRecipeById(id: string) {
-    try {
-      const result = await prisma.recipe.findUnique({
-        where: { id },
-        include: {
-          ingredients: {
-            include: {
-              unit_of_measure: true,
-              ingredient: true,
-            },
-          },
-          steps: true,
-        },
-      });
-      return result;
-    } catch (error) {
-      throw new Error(`Error al obtener receta: ${error}`);
-    }
-  }
-
-  /** GET RECIPE BY SLUG */
-  async getRecipeBySlug(
-    communitySlug: string,
-    recipeSlug: string,
-    userSlug: string
-  ) {
-    try {
-      const result = await prisma.recipe.findFirst({
-        where: {
-          slug: recipeSlug,
-          posts: {
-            some: {
-              community: { slug: communitySlug },
-              user: { slug: userSlug },
-            },
-          },
-        },
-        include: {
-          ingredients: {
-            include: {
-              unit_of_measure: true,
-              ingredient: true,
-            },
-          },
-          steps: true,
-          posts: {
-            include: {
-              community: { select: { image_url: true, slug: true } },
-              user: { select: { id: true, name: true, slug: true } },
-            },
-          },
-        },
-      });
-      return result;
-    } catch (error) {
-      throw new Error(`Error al obtener receta: ${error}`);
-    }
-  }
-
-  /** GET USER RECIPES */
+  // =========================================================
+  // OBTENER RECETAS DEL USUARIO
+  // =========================================================
   async getUserRecipes(user_id: string) {
     try {
       const result = await prisma.recipe.findMany({
@@ -117,7 +102,6 @@ export class RecipeService {
         include: {
           ingredients: {
             include: {
-              unit_of_measure: true,
               ingredient: true,
             },
           },
@@ -125,167 +109,77 @@ export class RecipeService {
         },
       });
       return result;
-    } catch (error) {
-      throw new Error(`Error al obtener recetas: ${error}`);
+    } catch (e) {
+      return null;
     }
   }
 
-  async searchRecipes(query: string) {
-    return await prisma.recipe.findMany({
-      where: {
-        OR: [
-          { name: { contains: query, mode: "insensitive" } }, // Busca en nombre
-          { description: { contains: query, mode: "insensitive" } }, // Busca en descripción
-          {
-            ingredients: {
-              some: {
-                // Asumiendo que tu modelo RecipeIngredient tiene relación con 'ingredient'
-                // Si tu nombre de ingrediente está directo en RecipeIngredient, ajusta esto.
-                ingredient: {
-                  name: { contains: query, mode: "insensitive" },
+  // =========================================================
+  // BUSCAR RECETAS
+  // =========================================================
+  async searchRecipes(query: string, page: number) {
+    try {
+      const size = 5;
+      const currentPage = Math.max(1, page);
+      const skip = (currentPage - 1) * size;
+
+
+      const result = await prisma.recipe.findMany({
+        where: {
+          OR: [
+            { name: { contains: query, mode: "insensitive" } },
+            {
+              ingredients: {
+                some: {
+                  ingredient: {
+                    name: { contains: query, mode: "insensitive" },
+                  },
                 },
               },
             },
-          },
-        ],
-      },
-      take: 5, // Trae máximo 5 para no llenar la memoria de la IA
-      select: {
-        name: true,
-        description: true,
-        total_time: true,
-      },
-    });
-  }
-
-  /** ASK OLLAMA */
-  async ask(data: AskAI): Promise<PaginatedResponse<any>> {
-    const page = data.page || 1;
-    const limit = data.limit || 20;
-    const skip = (page - 1) * limit;
-
-    if (data.type === "recipe") {
-      // Contar total de resultados
-      const total = await prisma.recipe.count({
-        where: {
-          name: {
-            contains: data.question,
-            mode: "insensitive",
-          },
+          ],
         },
-      });
+        select: {
+          id: true,
+          name: true,
+          main_image: true,
+          total_time: true,
 
-      // Obtener resultados paginados
-      const result = await prisma.recipe.findMany({
-        where: {
-          name: {
-            contains: data.question,
-            mode: "insensitive",
-          },
-        },
-        include: {
-          ingredients: true,
-          steps: true,
           user: {
             select: {
+              id: true,
+              name: true,
+              avatar_url: true,
               slug: true,
             },
           },
-          posts: {
+          _count: {
             select: {
-              votes_up: true,
-              community: {
-                select: {
-                  slug: true,
-                },
-              },
-            },
-            orderBy: {
-              votes_up: "desc",
+              ingredients: true,
+              steps: true,
+              posts: true,
             },
           },
         },
-        skip,
-        take: limit,
-        orderBy: {
-          posts: {
-            _count: "desc",
-          },
-        },
-      });
-
-      return {
-        data: result,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page < Math.ceil(total / limit),
-          hasPrev: page > 1,
-        },
-      };
-    }
-
-    if (data.type === "ingredient") {
-      // Contar total de resultados
-      const total = await prisma.recipe.count({
-        where: {
-          ingredients: {
-            some: {
-              ingredient: {
-                id: { in: data.ingredients },
-              },
-            },
-          },
-        },
-      });
-
-      // Obtener resultados paginados
-      const result = await prisma.recipe.findMany({
-        where: {
-          ingredients: {
-            some: {
-              ingredient: {
-                id: { in: data.ingredients },
-              },
-            },
-          },
-        },
-        include: {
-          ingredients: true,
-          steps: true,
-        },
-        skip,
-        take: limit,
         orderBy: {
           created_at: "desc",
         },
+        take: size + 1,
+        skip,
       });
+
+      const hasMore = result.length > size;
+      if (hasMore) result.pop();
 
       return {
         data: result,
         pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page < Math.ceil(total / limit),
-          hasPrev: page > 1,
-        },
+          page: currentPage,
+          hasMore,
+        }
       };
+    } catch (e) {
+      return null;
     }
-
-    return {
-      data: [],
-      pagination: {
-        page: 1,
-        limit,
-        total: 0,
-        totalPages: 0,
-        hasNext: false,
-        hasPrev: false,
-      },
-    };
   }
 }

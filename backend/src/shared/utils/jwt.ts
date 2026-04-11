@@ -4,7 +4,7 @@ import {
   SecureTokenPayload,
   UserSessionData,
   TempTokenPayload,
-} from "../interfaces/user.dto";
+} from "../interfaces/dto/user.dto";
 
 import { Role } from "@prisma/client";
 import crypto from "crypto";

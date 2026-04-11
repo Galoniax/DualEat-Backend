@@ -34,7 +34,7 @@ export class OrderController {
   // OBTENER ORDENES DE UN USUARIO
   // =========================================================
   getUserOrders = async (req: Request, res: Response) => {
-    const user_id = (req as any).user?.id;
+    const user_id = (req as any).user?.id || req.body.user_id;
     const { page } = req.query;
 
     if (typeof page !== "string" || isNaN(Number(page))) {
