@@ -1,6 +1,6 @@
 import { UserService } from "../services/user.service";
 import { Request, Response } from "express";
-import { RECAPTCHA_SECRET_KEY, SECRET_KEY } from "../../../core/config/config";
+import { SECRET_KEY } from "../../../core/config/config";
 
 import { prisma } from "../../../core/database/prisma/prisma";
 
@@ -13,7 +13,7 @@ import {
   UserSessionData,
   TempTokenPayload,
   SecureTokenPayload,
-} from "../../../shared/interfaces/user.dto";
+} from "../../../shared/interfaces/dto/user.dto";
 
 import { comparePassword, hashPassword } from "../../../shared/utils/hash";
 
@@ -38,7 +38,7 @@ export class AuthController {
       const { email, password, remember, recaptcha, deviceId } = req.body;
 
       const params = new URLSearchParams();
-  
+
       params.append("secret", process.env.RECAPTCHA_CLOUDFARE_SECRET_KEY || "");
       params.append("response", recaptcha);
 

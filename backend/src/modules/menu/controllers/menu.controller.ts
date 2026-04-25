@@ -76,13 +76,13 @@ export class MenuController {
   createFood = async (req: Request, res: Response) => {
     try {
       const localId = req.params.localId;
+
       if (typeof localId !== "string" || !localId) {
-        return res.status(400).json({ error: "Invalid localId" });
+        return res.status(400).json({ error: "Local inválido" });
       }
 
       const {
         category_id,
-        local_menu_category_id,
         name,
         description,
         price,
@@ -95,7 +95,7 @@ export class MenuController {
       }
 
       // Prisma solo acepta category_id. Si el frontend manda local_menu_category_id, lo usamos como category_id
-      const finalCategoryId = Number(local_menu_category_id || category_id || 1); // 1 como fallback por seguridad
+      const finalCategoryId = Number(category_id || 1);
 
       const food = await this.manualService.createFood(localId, {
         category_id: finalCategoryId,
@@ -105,6 +105,10 @@ export class MenuController {
         image_url,
         available,
       });
+
+      if (!food) {
+        return res.status(400).json({ error: "Error al crear el plato" });
+      }
 
       return res.status(201).json(food);
     } catch (error: any) {

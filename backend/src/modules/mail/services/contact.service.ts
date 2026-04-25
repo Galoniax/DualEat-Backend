@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import { ContactFormData } from "../../../shared/interfaces/contact.dto";
+import { ContactFormData } from "../../../shared/interfaces/dto/contact.dto";
 
 const transporter = nodemailer.createTransport({
   service: "gmail",

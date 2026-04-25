@@ -7,14 +7,14 @@ import { UserService } from "../services/user.service";
 import { PasswordService } from "../services/password.service";
 import { PasswordController } from "../controllers/password.controller";
 
-import { generalLimiter } from "../../../core/middlewares/rateLimiter";
+import { limiter } from "../../../core/middlewares/rateLimiter";
 import { isAuthenticated } from "../../../core/middlewares/isAuthenticated";
 
 import { createTempToken, createSecureToken } from "../../../shared/utils/jwt";
 import {
   UserSessionData,
   TempTokenPayload,
-} from "../../../shared/interfaces/user.dto";
+} from "../../../shared/interfaces/dto/user.dto";
 import { prisma } from "../../../core/database/prisma/prisma";
 
 const router = Router();
@@ -96,7 +96,6 @@ router.get(
         );
       }
     } else if (user && user.isExisting) {
-      
       // ============ Obtener Workplaces del usuario =============
       const workplaces = await prisma.localUser.findMany({
         where: { user_id: user.id },
@@ -184,19 +183,19 @@ router.get(
 
 // 1. RUTAS DE LOGIN/REGISTRO CON EMAIL Y CONTRASEÑA
 // =========================================
-router.post("/login", generalLimiter, controller.login.bind(controller));
+router.post("/login", limiter(false), controller.login.bind(controller));
 
-router.post("/register", generalLimiter, controller.register.bind(controller));
+router.post("/register", limiter(false), controller.register.bind(controller));
 
 router.post(
   "/complete-profile",
-  generalLimiter,
+  limiter(false),
   controller.completeProfile.bind(controller),
 );
 
 router.post(
   "/complete-local-profile",
-  generalLimiter,
+  limiter(false),
   controller.completeLocalProfile.bind(controller),
 );
 
@@ -204,19 +203,19 @@ router.post(
 // =========================================
 router.post(
   "/password_reset",
-  generalLimiter,
+  limiter(false),
   pcontroller.requestReset.bind(pcontroller),
 );
 
 router.post(
   "/password_reset/validate-code",
-  generalLimiter,
+  limiter(false),
   pcontroller.validateCode.bind(pcontroller),
 );
 
 router.post(
   "/password_reset/reset",
-  generalLimiter,
+  limiter(false),
   pcontroller.reset.bind(pcontroller),
 );
 

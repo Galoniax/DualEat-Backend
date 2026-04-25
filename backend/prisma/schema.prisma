@@ -88,6 +88,20 @@ enum NotificationContentType {
   COMMENT
 }
 
+enum Unit {
+  GRAMOS
+  KILOGRAMOS
+  MILILITROS
+  LITROS
+  CUCHARADITA
+  CUCHARADA
+  TAZA
+  UNIDAD
+  PIZCA
+  PAQUETE
+  OPCIONAL
+}
+
 enum DayOfWeek {
   LUNES
   MARTES
@@ -140,7 +154,7 @@ enum SubscriptionPlan {
 model User {
   // 1. IDENTIFICACIÓN Y PERFIL
   id         String  @id @default(nanoid(14)) @map("id")
-  slug       String
+  slug       String  @unique
   name       String
   email      String  @unique
   avatar_url String?
@@ -506,7 +520,7 @@ model CommunityMember {
 // ========================================================
 model Recipe {
   id          String @id @default(nanoid(10)) @map("id")
-  slug        String
+  slug        String @unique
   user        User   @relation(fields: [user_id], references: [id])
   user_id     String
   name        String
@@ -523,15 +537,14 @@ model Recipe {
 }
 
 model RecipeIngredient {
-  id                 String        @id @default(cuid()) @map("id")
-  recipe             Recipe        @relation(fields: [recipe_id], references: [id])
-  recipe_id          String
-  ingredient         Ingredient    @relation(fields: [ingredient_id], references: [id])
-  ingredient_id      Int
-  quantity           String
-  unit_of_measure    UnitOfMeasure @relation(fields: [unit_of_measure_id], references: [id])
-  unit_of_measure_id Int
-  notes              String?
+  id            String     @id @default(cuid()) @map("id")
+  recipe        Recipe     @relation(fields: [recipe_id], references: [id])
+  recipe_id     String
+  ingredient    Ingredient @relation(fields: [ingredient_id], references: [id])
+  ingredient_id Int
+  quantity      String
+  unit          Unit
+  notes         String?
 
   @@index([ingredient_id])
 }
@@ -553,23 +566,23 @@ model RecipeStep {
 // ========================================================
 
 model Post {
-  id             String    @id @default(nanoid(10)) @map("id")
-  slug           String
-  user           User      @relation(fields: [user_id], references: [id])
-  user_id        String
-  community      Community @relation(fields: [community_id], references: [id])
-  community_id   String
-  title          String
-  content        String
-  image_urls     String[]
+  id           String    @id @default(nanoid(10)) @map("id")
+  slug         String    @unique
+  user         User      @relation(fields: [user_id], references: [id])
+  user_id      String
+  community    Community @relation(fields: [community_id], references: [id])
+  community_id String
+  title        String
+  content      String
+  image_urls   String[]
 
-  votes_up       Int       @default(0)
-  votes_down     Int       @default(0)
-  total_comments Int       @default(0)
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
-  edited         Boolean   @default(false)
-  active         Boolean   @default(true)
+  votes_up       Int      @default(0)
+  votes_down     Int      @default(0)
+  total_comments Int      @default(0)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  edited         Boolean  @default(false)
+  active         Boolean  @default(true)
 
   comments  PostComment[]
   recipe    Recipe?       @relation(fields: [recipe_id], references: [id])
@@ -600,14 +613,8 @@ model PostComment {
 }
 
 // ========================================================
-// MODELO DE UNIDADES DE MEDIDA E INGREDIENTES
+// MODELO DE INGREDIENTES
 // ========================================================
-model UnitOfMeasure {
-  id                 Int                @id @default(autoincrement())
-  name               String             @unique
-  abbreviation       String?            @unique
-  recipe_ingredients RecipeIngredient[]
-}
 
 model Ingredient {
   id                 Int                @id @default(autoincrement())

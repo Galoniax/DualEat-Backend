@@ -7,28 +7,29 @@ import {
   deleteSupabaseFiles,
 } from "../../core/config/supabase";
 
-import { CreateRecipeDTO } from "../../shared/interfaces/recipe.dto";
-import { CreatePostDTO } from "../../shared/interfaces/post.dto";
+import { CreateRecipeDTO } from "../../shared/interfaces/dto/recipe.dto";
+import { CreatePostDTO } from "../../shared/interfaces/dto/post.dto";
 
 export class PostController {
   constructor(private postService: PostService) {}
 
-  /** GET ALL POSTS */
+  // =========================================================
+  // OBTENER TODOS LOS POSTS
+  // =========================================================
   getAll = async (req: Request, res: Response) => {
     try {
-      const { page, recipe } = req.query;
+      const { page } = req.query;
       const user_id = (req as any).user?.id;
 
       const result = await this.postService.getAllPosts(
         Number(page),
         String(user_id),
-        Boolean(recipe),
       );
 
       if (!result) {
         return res
           .status(404)
-          .json({ success: false, error: "Posts not found" });
+          .json({ success: false, message: "Posts no encontrados" });
       }
 
       return res.status(200).json({ success: true, ...result });
@@ -39,30 +40,27 @@ export class PostController {
     }
   };
 
-  /** GET POST (by slug)*/
-  getBySlug = async (req: Request, res: Response) => {
-    const { communitySlug, postSlug, userSlug, sortBy } = req.query;
+  // =========================================================
+  // OBTENER POST POR ID
+  // =========================================================
+  getById = async (req: Request, res: Response) => {
+    const { id } = req.params as { id: string };
     const user_id = (req as any).user?.id;
 
-    if (!communitySlug || !postSlug || !userSlug) {
+    if (!id) {
       return res
         .status(400)
-        .json({ success: false, error: "Slugs no encontrados" });
+        .json({ success: false, message: "Id no encontrado" });
     }
 
     try {
-      const post = await this.postService.getPostBySlug(
-        String(userSlug),
-        String(communitySlug),
-        String(postSlug),
-        user_id,
-        Number(sortBy),
-      );
+      const post = await this.postService.getById(String(id), String(user_id));
       if (!post) {
         return res
           .status(404)
-          .json({ success: false, error: "Post not found" });
+          .json({ success: false, message: "Post no encontrado" });
       }
+
       return res.status(200).json({ success: true, data: post });
     } catch (e) {
       return res

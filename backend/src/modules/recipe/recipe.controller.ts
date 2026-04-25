@@ -1,111 +1,127 @@
 import { Request, Response } from "express";
 import { RecipeService } from "./recipe.service";
 
-import { ollamaConfig } from "../../core/config/config";
-
-import axios from "axios";
-
 export class RecipeController {
   constructor(private recipeService: RecipeService) {}
 
-  /** GET INGREDIENTS */
+  // =========================================================
+  // OBTENER INGREDIENTES
+  // =========================================================
   getAllIngredients = async (req: Request, res: Response) => {
     try {
       const ingredients = await this.recipeService.getAllIngredients();
-      res.status(200).json({ success: true, data: ingredients });
-    } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
-    }
-  };
 
-  /** GET UNITS */
-  getAllUnits = async (req: Request, res: Response) => {
-    try {
-      const units = await this.recipeService.getAllUnits();
-      res.status(200).json({ success: true, data: units });
-    } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
-    }
-  };
-
-  /** GET RECIPE BY NAME */
-  getRecipeValidation = async (req: Request, res: Response) => {
-    const { name, community_id } = req.query;
-    const user_id = (req as any).user?.id;
-    try {
-      const recipe = await this.recipeService.getRecipeValidation(
-        name as string,
-        user_id as string,
-        community_id as string
-      );
-
-      if (recipe) {
-        return res.status(200).json({ success: true, data: recipe });
-      }
-      return res
-        .status(404)
-        .json({ success: false, error: "Receta no encontrada" });
-    } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
-    }
-  };
-
-  /** GET RECIPE BY ID */
-  getRecipeById = async (req: Request, res: Response) => {
-    const { id } = req.params;
-    try {
-      const recipe = await this.recipeService.getRecipeById(id);
-      if (recipe) {
-        return res.status(200).json({ success: true, data: recipe });
-      }
-      return res
-        .status(404)
-        .json({ success: false, message: "Receta no encontrada" });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
-    }
-  };
-
-  /** GET USER RECIPES */
-  getUserRecipes = async (req: Request, res: Response) => {
-    const user_id = (req as any).user?.id;
-    try {
-      const recipes = await this.recipeService.getUserRecipes(user_id);
-      res.status(200).json({ success: true, data: recipes });
-    } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
-    }
-  };
-
-  /** GET RECIPE BY SLUG */
-  getRecipeBySlug = async (req: Request, res: Response) => {
-    const { communitySlug, recipeSlug, userSlug } = req.query;
-
-    try {
-      if (!communitySlug || !recipeSlug || !userSlug) {
+      if (!ingredients) {
         return res
-          .status(400)
-          .json({ success: false, message: "Faltan parámetros obligatorios" });
+          .status(404)
+          .json({ success: false, message: "No se encontraron ingredientes" });
       }
 
-      const recipe = await this.recipeService.getRecipeBySlug(
-        communitySlug as string,
-        recipeSlug as string,
-        userSlug as string
-      );
+      return res.status(200).json({ success: true, data: ingredients });
+    } catch (e) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Error interno del servidor" });
+    }
+  };
 
-      if (recipe) {
-        return res.status(200).json({ success: true, data: recipe });
-      } else {
+  // =========================================================
+  // OBTENER RECETA POR ID
+  // =========================================================
+  getById = async (req: Request, res: Response) => {
+    const { id } = req.params as { id: string };
+
+    if (!id) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Id no encontrado" });
+    }
+
+    try {
+      const recipe = await this.recipeService.getById(id);
+      if (!recipe) {
         return res
           .status(404)
           .json({ success: false, message: "Receta no encontrada" });
       }
-    } catch (error: any) {
-      res.status(500).json({
+      return res.status(200).json({ success: true, data: recipe });
+    } catch (e) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Error interno del servidor" });
+    }
+  };
+
+  // =========================================================
+  // OBTENER RECETAS DEL USUARIO
+  // =========================================================
+  getUserRecipes = async (req: Request, res: Response) => {
+    const user_id = (req as any).user?.id;
+    try {
+      const recipes = await this.recipeService.getUserRecipes(user_id);
+      return res.status(200).json({ success: true, data: recipes });
+    } catch (e) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Error interno del servidor" });
+    }
+  };
+
+  // =========================================================
+  // OBTENER RECETAS POR IDs
+  // =========================================================
+  getByIds = async (req: Request, res: Response) => {
+    const { ids } = req.body as { ids: string[] };
+
+    if (!ids) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Ids no encontrados" });
+    }
+
+    try {
+      const recipes = await this.recipeService.getByIds(ids);
+      if (!recipes) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Recetas no encontradas" });
+      }
+      return res.status(200).json({ success: true, data: recipes });
+    } catch (e) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Error interno del servidor" });
+    }
+  };
+
+  // =========================================================
+  // BUSCAR RECETAS POR NOMBRE (PAGINATION)
+  // =========================================================
+  searchRecipes = async (req: Request, res: Response) => {
+    const { page, query } = req.query;
+
+    if (typeof page !== "string" || isNaN(Number(page))) {
+      return res.status(400).json({
         success: false,
-        message: error.message || "Error interno del servidor",
+        message: "El número de página no es válido.",
       });
+    }
+
+    try {
+      const recipes = await this.recipeService.searchRecipes(
+        String(query),
+        Number(page),
+      );
+      if (!recipes) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Recetas no encontradas" });
+      }
+      return res.status(200).json({ success: true, data: recipes });
+    } catch (e) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Error interno del servidor" });
     }
   };
 }

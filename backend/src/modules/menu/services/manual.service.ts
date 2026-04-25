@@ -10,7 +10,7 @@ export class ManualService {
       price: number;
       image_url?: string;
       available?: boolean;
-    }
+    },
   ) {
     const local = await prisma.local.findUnique({
       where: { id: localId },
@@ -22,7 +22,7 @@ export class ManualService {
     const food = await prisma.food.create({
       data: {
         local_id: localId,
-        category_id: data.category_id, // Prisma exige un Int, nunca null
+        category_id: data.category_id,
         name: data.name,
         description: data.description || null,
         price: data.price,
@@ -43,7 +43,7 @@ export class ManualService {
       price?: number;
       image_url?: string;
       available?: boolean;
-    }
+    },
   ) {
     const existingFood = await prisma.food.findUnique({
       where: { id: foodId },
@@ -100,8 +100,8 @@ export class ManualService {
             image_url: dish.image_url || null,
             available: dish.available ?? true,
           },
-        })
-      )
+        }),
+      ),
     );
 
     return foods;

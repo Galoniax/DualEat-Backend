@@ -1,6 +1,6 @@
 import { prisma } from "../../../core/database/prisma/prisma";
 import { Prisma } from "@prisma/client";
-import { CreateCommunityDTO } from "../../../shared/interfaces/community.dto";
+import { CreateCommunityDTO } from "../../../shared/interfaces/dto/community.dto";
 
 import { generateUniqueSlug } from "../../../shared/utils/sluglify";
 

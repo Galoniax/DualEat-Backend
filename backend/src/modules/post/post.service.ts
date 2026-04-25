@@ -1,9 +1,9 @@
 import { prisma } from "../../core/database/prisma/prisma";
 
-import { CreatePostDTO } from "../../shared/interfaces/post.dto";
-import { CreateRecipeDTO } from "../../shared/interfaces/recipe.dto";
+import { CreatePostDTO } from "../../shared/interfaces/dto/post.dto";
+import { CreateRecipeDTO } from "../../shared/interfaces/dto/recipe.dto";
 
-import { generateReadableSlug } from "../../shared/utils/sluglify";
+import { generateSlug } from "../../shared/utils/sluglify";
 import { getSocketServer } from "../../core/config/socket.config";
 import { Post, Recipe, Community, ContentType } from "@prisma/client";
 
@@ -12,7 +12,7 @@ import { interleaveByCommunity } from "../../shared/utils/shuffler";
 export class PostService {
   private async sendPostNotification(
     post: Post & { community?: Community | null },
-    recipe?: Recipe
+    recipe?: Recipe,
   ) {
     if (!post.community_id) {
       return;
@@ -31,8 +31,6 @@ export class PostService {
       },
       select: { user_id: true },
     });
-
-   
 
     // 3. Crear notificaciones en BD para usuarios con notificaciones inmediatas
     if (immediateSubscribers.length > 0) {
@@ -94,12 +92,12 @@ export class PostService {
         });
 
         console.log(
-          `[Socket] Notificación inmediata enviada a ${immediateUserIds.length} usuarios por post en comunidad ${post.community_id}.`
+          `[Socket] Notificación inmediata enviada a ${immediateUserIds.length} usuarios por post en comunidad ${post.community_id}.`,
         );
       } catch (socketError) {
         console.error(
           "Error al enviar notificación por Socket.io:",
-          socketError
+          socketError,
         );
       }
     }
@@ -109,7 +107,7 @@ export class PostService {
     post_id: string,
     user_id: string,
     content: string,
-    parent_comment_id?: string | null
+    parent_comment_id?: string | null,
   ) {
     try {
       let recipientUserId: string | null = null;
@@ -209,12 +207,12 @@ export class PostService {
           });
 
           console.log(
-            `[Socket] Notificación de comentario enviada a ${recipientUserId}`
+            `[Socket] Notificación de comentario enviada a ${recipientUserId}`,
           );
         } catch (socketError) {
           console.error(
             "Error al enviar notificación por Socket.io:",
-            socketError
+            socketError,
           );
         }
       }
@@ -224,15 +222,41 @@ export class PostService {
   }
 
   /** GET ALL POSTS */
-  async getAllPosts(page: number, user_id: string, recipe: boolean) {
+  async getAllPosts(page: number, user_id: string) {
     try {
-      const pageSize = 20;
-      const skipAmount = (page - 1) * pageSize;
+      const size = 10;
+      const skip = (Math.max(1, page) - 1) * size;
 
-      const createPostQuery = (whereClause: any) => ({
-        where: whereClause,
+      const relevantCommunities = await prisma.community.findMany({
+        where: {
+          OR: [
+            { members: { some: { user_id } } },
+            { tags: { some: { user_preferences: { some: { user_id } } } } },
+          ],
+        },
+        select: { id: true },
+      });
+
+      const communityIds = relevantCommunities.map((c) => c.id);
+
+      const posts = await prisma.post.findMany({
+        where: {
+          active: true,
+          OR: [
+            ...(communityIds.length > 0
+              ? [{ community_id: { in: communityIds } }]
+              : []),
+            { user_id },
+          ],
+        },
         include: {
-          community: { select: { name: true, image_url: true, slug: true } },
+          community: {
+            select: {
+              name: true,
+              image_url: true,
+              slug: true,
+            },
+          },
           recipe: {
             select: {
               id: true,
@@ -243,117 +267,64 @@ export class PostService {
               _count: { select: { steps: true, ingredients: true } },
             },
           },
-          user: {
-            select: { id: true, name: true, avatar_url: true, slug: true },
-          },
         },
-        skip: skipAmount,
-        take: pageSize,
-        orderBy: { created_at: "desc" as const },
+        orderBy: { created_at: "desc" },
+        skip,
+        take: size,
       });
 
-      const results = await Promise.allSettled([
-        prisma.post.findMany(
-          createPostQuery({
-            community: { members: { some: { user_id } } },
-          })
-        ),
-        prisma.post.findMany(
-          createPostQuery({
-            community: {
-              members: { none: { user_id } },
-              tags: { some: { user_preferences: { some: { user_id } } } },
-            },
-          })
-        ),
-        prisma.post.findMany(
-          createPostQuery({
-            community: {
-              members: { none: { user_id } },
-              tags: { none: { user_preferences: { some: { user_id } } } },
-            },
-          })
-        ),
-      ]);
+      const postIds = posts.map((p) => p.id);
 
-      const votes = await prisma.vote.findMany({
+      const userVotes = await prisma.vote.findMany({
         where: {
-          content_type: ContentType.POST,
-          content_id: {
-            in: results
-              .filter((r) => r.status === "fulfilled")
-              .flatMap((r) => (r as PromiseFulfilledResult<any>).value)
-              .map((post) => post.id),
-          },
+          user_id: user_id,
+          content_type: "POST",
+          content_id: { in: postIds },
         },
-        select: {
-          content_id: true,
-          vote_type: true,
-        },
+        select: { content_id: true, vote_type: true },
       });
 
-      // Crear mapa de votos para acceso rápido
       const voteMap = new Map(
-        votes.map((vote) => [vote.content_id, vote.vote_type])
+        userVotes.map((v) => [v.content_id, v.vote_type]),
       );
 
-      const allPosts = results
-        .filter((r) => r.status === "fulfilled")
-        .flatMap((r) => (r as PromiseFulfilledResult<any>).value);
+      const data = posts.map((post) => ({
+        ...post,
+        userVote: voteMap.get(post.id) || null,
+        hasVoted: voteMap.has(post.id),
+      }));
 
-      const uniquePosts = Array.from(
-        new Map(allPosts.map((post) => [post.id, post])).values()
-      );
-
-      const data = uniquePosts.map((post) => {
-        return {
-          ...post,
-          userVote: voteMap.get(post.id) || null,
-          hasVoted: voteMap.has(post.id),
-        };
-      });
-
-      const shuffledData = interleaveByCommunity(data);
+      const hasMore = data.length === size;
 
       return {
-        data: shuffledData,
-        pagination: {
-          page,
-          hasMore: uniquePosts.length >= pageSize,
-        },
+        data,
+        pagination: { page, hasMore },
       };
-    } catch (error) {
-      console.error("Error al obtener posts:", error);
-      return { success: false, error: "Error al obtener los posts" };
+    } catch (e) {
+      return null;
     }
   }
 
-  /** GET POST (by slug) */
-  async getPostBySlug(
-    userSlug: string,
-    communitySlug: string,
-    postSlug: string,
-    user_id: string,
-    sortBy: number
-  ) {
+  // =========================================================
+  // OBTENER POST POR ID
+  // =========================================================
+  async getById(post_id: string, user_id: string) {
     try {
-      let isMember = false;
-
-      const post = await prisma.post.findFirst({
-        where: {
-          slug: postSlug,
-          user: { is: { slug: userSlug } },
-          community: { is: { slug: communitySlug } },
-        },
+      const post = await prisma.post.findUnique({
+        where: { id: post_id },
         include: {
           community: true,
           recipe: true,
           user: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-              avatar_url: true,
+            select: { id: true, name: true, slug: true, avatar_url: true },
+          },
+          comments: {
+            where: { active: true },
+            orderBy: { created_at: "asc" },
+            include: {
+              user: {
+                select: { id: true, name: true, slug: true, avatar_url: true },
+              },
             },
           },
         },
@@ -361,143 +332,73 @@ export class PostService {
 
       if (!post) return null;
 
+      const { comments, ...postBaseData } = post;
+
+      let postVote = null;
+      let commentVotes: any[] = [];
+
       if (user_id) {
-        const member = await prisma.communityMember.findFirst({
-          where: {
-            community_id: post.community_id,
-            user_id,
-          },
-        });
-        if (member) {
-          isMember = true;
-        }
+        const [pVote, cVotes] = await Promise.all([
+          prisma.vote.findFirst({
+            where: {
+              user_id,
+              content_id: post_id,
+              content_type: ContentType.POST,
+            },
+          }),
+          comments.length > 0
+            ? prisma.vote.findMany({
+                where: {
+                  user_id,
+                  content_type: ContentType.COMMENT,
+                  content_id: { in: comments.map((c) => c.id) },
+                },
+              })
+            : Promise.resolve([]),
+        ]);
+
+        postVote = pVote;
+        commentVotes = cVotes;
       }
 
-      const allComments = await prisma.postComment.findMany({
-        where: {
-          post_id: post.id,
-          active: true,
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-              avatar_url: true,
-            },
-          },
-        },
-        orderBy: {
-          created_at: "asc",
-        },
-      });
-
-      const postVote = await prisma.vote.findFirst({
-        where: {
-          user_id,
-          content_id: post.id,
-          content_type: ContentType.POST,
-        },
-      });
-
-      const commentVotes = await prisma.vote.findMany({
-        where: {
-          user_id,
-          content_type: ContentType.COMMENT,
-          content_id: {
-            in: allComments.map((c) => c.id),
-          },
-        },
-      });
-
-      // 5. Tipo para el comentario enriquecido
-      type EnrichedComment = (typeof allComments)[0] & {
+      type EnrichedComment = (typeof comments)[0] & {
         userVote: string | null;
         replies: EnrichedComment[];
-        totalReplies?: number; // Para el filtro controversial
       };
-
-      // 6. Construir el árbol
-      const commentMap = new Map<string, EnrichedComment>();
+      const commentMap = new Map<string, EnrichedComment>(
+        comments.map((c) => [
+          c.id,
+          {
+            ...c,
+            userVote:
+              commentVotes.find((v) => v.content_id === c.id)?.vote_type ??
+              null,
+            replies: [],
+          },
+        ]),
+      );
       const rootComments: EnrichedComment[] = [];
 
-      allComments.forEach((comment) => {
-        const vote = commentVotes.find((v) => v.content_id === comment.id);
-        commentMap.set(comment.id, {
-          ...comment,
-          userVote: vote?.vote_type ?? null,
-          replies: [],
-        });
-      });
-
-      allComments.forEach((comment) => {
-        const commentWithReplies = commentMap.get(comment.id)!;
+      for (const comment of comments) {
+        const enrichedComment = commentMap.get(comment.id)!;
 
         if (comment.parent_comment_id) {
           const parent = commentMap.get(comment.parent_comment_id);
           if (parent) {
-            parent.replies.push(commentWithReplies);
+            parent.replies.push(enrichedComment);
           }
         } else {
-          rootComments.push(commentWithReplies);
+          rootComments.push(enrichedComment);
         }
-      });
-
-      // 7. Función recursiva para contar todas las replies
-      const countAllReplies = (comment: EnrichedComment): number => {
-        let count = comment.replies.length;
-        comment.replies.forEach((reply) => {
-          count += countAllReplies(reply);
-        });
-        return count;
-      };
-
-      // 8. Agregar el conteo de replies a cada comentario
-      rootComments.forEach((comment) => {
-        comment.totalReplies = countAllReplies(comment);
-      });
-
-      // 9. Ordenar según el filtro
-      const sortedComments = [...rootComments].sort((a, b) => {
-        switch (sortBy) {
-          case 1:
-            // Más votados (votes_up - votes_down)
-            const scoreA = a.votes_up - a.votes_down;
-            const scoreB = b.votes_up - b.votes_down;
-            return scoreB - scoreA;
-
-          case 2:
-            // Más recientes primero
-            return (
-              new Date(b.created_at).getTime() -
-              new Date(a.created_at).getTime()
-            );
-
-          case 3:
-            // Más antiguos primero
-            return (
-              new Date(a.created_at).getTime() -
-              new Date(b.created_at).getTime()
-            );
-
-          case 4:
-            // Más polémicos (más replies totales)
-            return (b.totalReplies || 0) - (a.totalReplies || 0);
-
-          default:
-            return 0;
-        }
-      });
+      }
 
       return {
-        ...post,
+        ...postBaseData,
         userVote: postVote?.vote_type ?? null,
-        comments: sortedComments,
-        isMember,
+        comments: rootComments,
       };
-    } catch (error) {
-      throw new Error(`Error al obtener el post: ${error}`);
+    } catch (e) {
+      return null;
     }
   }
 
@@ -510,7 +411,7 @@ export class PostService {
       if (recipeData) {
         const slugRecipe = await generateReadableSlug(
           recipeData.name,
-          recipeModel
+          recipeModel,
         );
         const result = await prisma.$transaction(async (tx) => {
           const recipe = await tx.recipe.create({
@@ -575,7 +476,7 @@ export class PostService {
     post_id: string,
     user_id: string,
     content: string,
-    parent_comment_id?: string | null
+    parent_comment_id?: string | null,
   ) {
     try {
       const result = await prisma.$transaction(async (tx) => {
@@ -616,7 +517,7 @@ export class PostService {
           post_id,
           user_id,
           content,
-          parent_comment_id
+          parent_comment_id,
         );
       }
 

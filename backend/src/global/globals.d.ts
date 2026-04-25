@@ -1,4 +1,4 @@
-import { UserSessionData } from "../shared/interfaces/user.dto";
+import { UserSessionData } from "../shared/interfaces/dto/user.dto";
 
 declare const __dirname: string;
 

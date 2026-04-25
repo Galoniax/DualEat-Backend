@@ -1,7 +1,7 @@
 import { prisma } from "../../../core/database/prisma/prisma";
 import { User } from "@prisma/client";
-import { Workplace } from "../../../shared/interfaces/user.dto";
-import { BasicCreateDTO } from "../../../shared/interfaces/user.dto";
+import { Workplace } from "../../../shared/interfaces/dto/user.dto";
+import { BasicCreateDTO } from "../../../shared/interfaces/dto/user.dto";
 
 export type UserWithWorkplaces = User & {
   workplaces: Workplace[];

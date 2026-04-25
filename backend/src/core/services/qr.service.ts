@@ -1,6 +1,6 @@
 import { prisma } from "../database/prisma/prisma";
 import qrcode from "qrcode";
-import { QrResponse } from "../../shared/interfaces/qr.interfaces";
+import { QrResponse } from "../../shared/interfaces/dto/qr.interfaces";
 
 export class QrService {
   /** GENERATE QR FOR LOCAL */
