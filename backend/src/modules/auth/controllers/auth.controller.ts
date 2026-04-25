@@ -107,6 +107,22 @@ export class AuthController {
         });
       }
 
+      if (user.is_business) {
+        const userLocals = await prisma.localUser.findMany({
+            where: { user_id: user.id },
+            include: { local: true }
+        });
+        
+        const hasPendingLocal = userLocals.some(lw => (lw.local as any) && !(lw.local as any).active);
+        
+        if (hasPendingLocal) {
+            return res.status(403).json({
+                success: false,
+                message: "Su comercio se encuentra en revisión. Por favor espere a que sea aprobado por un administrador para poder iniciar sesión."
+            });
+        }
+      }
+
       // ============================================================
       // 4. PREPARACIÓN DE DATOS DE SESIÓN
       // ============================================================
@@ -228,8 +244,7 @@ export class AuthController {
       return res.status(200).json({
         success: true,
         message: "Credenciales válidas. Continuando a preferencias.",
-        //next_step: `/onboarding?tempToken=${tempToken}`,
-        next_step: `?tempToken=${tempToken}`,
+        next_step: `/onboarding?tempToken=${tempToken}`,
       });
     } catch (error) {
       console.error("Register Error:", error);
@@ -358,6 +373,92 @@ export class AuthController {
       return res.status(500).json({
         success: false,
         message: "Error interno al completar el perfil",
+      });
+    }
+  }
+
+  // =========================================================
+  // COMPLETAR PERFIL (LOCAL + USUARIO ADMIN)
+  // =========================================================
+  async completeLocalProfile(req: Request, res: Response) {
+    try {
+      const { tempToken, userName, localName, localAddress, localDescription, localType } = req.body;
+
+      if (!tempToken) {
+        return res.status(401).json({
+          success: false,
+          message: "Token de registro no proporcionado",
+        });
+      }
+
+      let tempData: TempTokenPayload;
+      try {
+        tempData = verifyTempToken(tempToken);
+      } catch (err) {
+        return res.status(401).json({
+          success: false,
+          message: "La sesión de registro ha expirado. Por favor inicia de nuevo.",
+        });
+      }
+
+      const DEFAULT_AVATAR = "https://ohhvldagwoycuifwhgtc.supabase.co/storage/v1/object/public/assets/DefaultProfile.png";
+      const userSlugString = String(await generateUniqueSlug(userName.trim(), prisma.user));
+      const localSlugString = String(await generateUniqueSlug(localName.trim(), prisma.local));
+
+      // START TRANSACTION
+      const result = await prisma.$transaction(async (tx) => {
+        // 1. Create User
+        const user = await tx.user.create({
+          data: {
+            email: tempData.email,
+            name: userName.trim(),
+            slug: userSlugString,
+            password_hash: tempData.password_hash || undefined,
+            avatar_url: tempData.avatar_url || DEFAULT_AVATAR,
+            provider: tempData.provider || "local",
+            is_business: true,
+            role: "USER",
+          }
+        });
+
+        // 2. Create Local
+        const local = await tx.local.create({
+          data: {
+            slug: localSlugString,
+            name: localName.trim(),
+            address: localAddress.trim(),
+            description: localDescription?.trim() || null,
+            type_local: localType?.trim() || "Restaurante",
+            image_url: "https://ohhvldagwoycuifwhgtc.supabase.co/storage/v1/object/public/assets/DefaultLocal.webp", 
+            latitude: 0, 
+            longitude: 0,
+          }
+        });
+
+        // 3. Create LocalUser (link)
+        await tx.localUser.create({
+          data: {
+            user_id: user.id,
+            local_id: local.id,
+            role: "admin", 
+          }
+        });
+
+        return { user, local };
+      });
+
+      return res
+        .status(201)
+        .json({
+          success: true,
+          message: "Registro de local completado exitosamente y en revisión",
+        });
+
+    } catch (e) {
+      console.error("Error al completar el perfil de local:", e);
+      return res.status(500).json({
+        success: false,
+        message: "Error interno al completar el perfil de local",
       });
     }
   }

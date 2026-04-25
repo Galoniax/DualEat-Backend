@@ -107,15 +107,23 @@ router.get(
               id: true,
               slug: true,
               name: true, 
-            }
+              active: true,
+            } as any
           }
         }
       });
 
+      if (user.isBusiness) {
+        const hasPendingLocal = workplaces.some(w => !((w as any).local?.active));
+        if (hasPendingLocal) {
+          return res.redirect(`${process.env.FRONTEND_URL}/login?error=local_pending`);
+        }
+      }
+
       const workplaceData = workplaces.map(workplace => ({
-        id: workplace.local.id,
-        slug: workplace.local.slug,
-        name: workplace.local.name,
+        id: (workplace as any).local.id,
+        slug: (workplace as any).local.slug,
+        name: (workplace as any).local.name,
         role: workplace.role
       }));
 
@@ -156,7 +164,11 @@ router.get(
         return res.redirect(`dualeat://callback?token=${accessToken}`);
       } else {
         if (user.isBusiness) {
-          return res.redirect(`${process.env.FRONTEND_URL}/business/dashboard`);
+          if (user.subscription_status === "active") {
+            return res.redirect(`${process.env.FRONTEND_URL}/business/dashboard`);
+          } else {
+            return res.redirect(`${process.env.FRONTEND_URL}/business/menu`);
+          }
         } else {
           return res.redirect(`${process.env.FRONTEND_URL}/feed`);
         }
@@ -180,6 +192,12 @@ router.post(
   "/complete-profile",
   generalLimiter,
   controller.completeProfile.bind(controller),
+);
+
+router.post(
+  "/complete-local-profile",
+  generalLimiter,
+  controller.completeLocalProfile.bind(controller),
 );
 
 // 2. RUTAS DE RESET DE CONTRASEÑA

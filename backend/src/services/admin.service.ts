@@ -6,49 +6,55 @@ import { prisma } from "../core/database/prisma/prisma";
 
 export const createBusinessUserAndLocal = async (
   userData: { name: string; email: string; password: string },
-  businessData: any,
+  _businessData: any, // Obsoleto, se mantiene por compatibilidad de firma si es necesario
   localData: any
 ) => {
   try {
     const hashedPassword = await bcrypt.hash(userData.password, 10);
-    const model = prisma.user;
 
-    const result = await prisma.$transaction(async (prisma) => {
-      // 1. Crear el usuario con is_business = true
-      const userSlug = await generateUniqueSlug(userData.name.trim(), model);
-      const user = await prisma.user.create({
+    const result = await prisma.$transaction(async (tx) => {
+      const userSlug = await generateUniqueSlug(userData.name.trim(), tx.user);
+      const user = await tx.user.create({
         data: {
           name: userData.name,
           slug: userSlug,
           email: userData.email,
           password_hash: hashedPassword,
           is_business: true,
-          role: "user",
+          role: "USER",
         },
       });
 
-      // 2. Crear el negocio y asociarlo al usuario
-      const business = await prisma.business.create({
+      const localSlug = await generateUniqueSlug(localData.name.trim(), tx.local);
+      const local = await tx.local.create({
         data: {
-          ...businessData,
-          owner_id: user.id,
+          name: localData.name,
+          slug: localSlug,
+          description: localData.description || "",
+          address: localData.address || "",
+          phone: localData.phone || "",
+          email: localData.email || userData.email,
+          image_url: localData.image_url || "https://placehold.co/600x400/png?text=DualEat+Local",
+          type_local: localData.type_local || "Restaurante",
+          latitude: localData.latitude || -34.6037, // Default Buenos Aires
+          longitude: localData.longitude || -58.3816,
         },
       });
 
-      // 3. Crear el local y asociarlo al negocio
-      const local = await prisma.local.create({
+      const localUser = await tx.localUser.create({
         data: {
-          ...localData,
-          business_id: business.id,
+          user_id: user.id,
+          local_id: local.id,
+          role: "admin",
         },
       });
 
-      return { user, business, local };
+      return { user, local, localUser };
     });
 
     return { success: true, ...result };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating business user and local:", error);
-    throw new Error("Could not create business user, business, and local.");
+    throw new Error(error.message || "Could not create business user and local.");
   }
 };
