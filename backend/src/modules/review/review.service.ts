@@ -1,4 +1,5 @@
 import { prisma } from "../../core/database/prisma/prisma";
+import { LocalNotificationService } from "../notification/local/local-notification.service";
 
 export class ReviewService {
   /** GET REVIEWS BY LOCAL ID */
@@ -25,7 +26,7 @@ export class ReviewService {
     rating: number,
     comment?: string
   ) {
-    return await prisma.localReview.create({
+    const review = await prisma.localReview.create({
       data: {
         local_id: localId,
         user_id: userId,
@@ -38,5 +39,15 @@ export class ReviewService {
         },
       },
     });
+
+    // Envía notificación WebSocket al dueño del local (dispara y olvida)
+    const localNotificationService = new LocalNotificationService();
+    localNotificationService.sendReviewNotification(
+      localId,
+      rating,
+      review.user.name
+    ).catch(e => console.error("Error disparando notificacion:", e));
+
+    return review;
   }
 }

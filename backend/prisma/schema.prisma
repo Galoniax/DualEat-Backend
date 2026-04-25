@@ -235,6 +235,7 @@ model Local {
   longitude Float
 
   average_rating Float    @default(0)
+  active         Boolean  @default(false)
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
 

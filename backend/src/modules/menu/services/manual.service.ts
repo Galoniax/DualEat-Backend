@@ -1,16 +1,13 @@
-import { VoteType } from "@prisma/client";
 import { prisma } from "../../../core/database/prisma/prisma";
 
 export class ManualService {
   async createFood(
     localId: string,
     data: {
-      category_id?: number;
-      local_menu_category_id?: number; // Agregar este campo
+      category_id: number;
       name: string;
       description?: string;
       price: number;
-      discount?: boolean;
       image_url?: string;
       available?: boolean;
     }
@@ -22,36 +19,14 @@ export class ManualService {
       throw new Error("Local not found");
     }
 
-    // Validar que solo se envíe uno de los dos tipos de categoría
-    if (data.category_id && data.local_menu_category_id) {
-      throw new Error("Cannot set both category_id and local_menu_category_id");
-    }
-
-    // Si se envía local_menu_category_id, verificar que pertenezca al local
-    if (data.local_menu_category_id) {
-      const localCategory = await prisma.localMenuCategory.findFirst({
-        where: {
-          id: data.local_menu_category_id,
-          local_id: localId,
-        },
-      });
-      if (!localCategory) {
-        throw new Error(
-          "Local menu category not found or doesn't belong to this local"
-        );
-      }
-    }
-
     const food = await prisma.food.create({
       data: {
         local_id: localId,
-        category_id: data.category_id ?? null,
-        local_menu_category_id: data.local_menu_category_id ?? null,
+        category_id: data.category_id, // Prisma exige un Int, nunca null
         name: data.name,
-        description: data.description,
+        description: data.description || null,
         price: data.price,
-        discount: data.discount ?? false,
-        image_url: data.image_url ?? null,
+        image_url: data.image_url || null,
         available: data.available ?? true,
       },
     });
@@ -59,16 +34,13 @@ export class ManualService {
     return food;
   }
 
-  // Agregar método para actualizar comida
   async updateFood(
     foodId: string,
     data: {
       category_id?: number;
-      local_menu_category_id?: number;
       name?: string;
       description?: string;
       price?: number;
-      discount?: boolean;
       image_url?: string;
       available?: boolean;
     }
@@ -80,39 +52,13 @@ export class ManualService {
       throw new Error("Food not found");
     }
 
-    // Validar que solo se envíe uno de los dos tipos de categoría
-    if (data.category_id && data.local_menu_category_id) {
-      throw new Error("Cannot set both category_id and local_menu_category_id");
-    }
-
-    // Si se envía local_menu_category_id, verificar que pertenezca al local
-    if (data.local_menu_category_id) {
-      const localCategory = await prisma.localMenuCategory.findFirst({
-        where: {
-          id: data.local_menu_category_id,
-          local_id: existingFood.local_id,
-        },
-      });
-      if (!localCategory) {
-        throw new Error(
-          "Local menu category not found or doesn't belong to this local"
-        );
-      }
-    }
-
     const updatedFood = await prisma.food.update({
       where: { id: foodId },
       data: {
-        category_id:
-          data.category_id !== undefined ? data.category_id : undefined,
-        local_menu_category_id:
-          data.local_menu_category_id !== undefined
-            ? data.local_menu_category_id
-            : undefined,
+        category_id: data.category_id, // Si es undefined, Prisma simplemente no lo actualiza
         name: data.name,
         description: data.description,
         price: data.price,
-        discount: data.discount,
         image_url: data.image_url,
         available: data.available,
       },
@@ -121,59 +67,37 @@ export class ManualService {
     return updatedFood;
   }
 
-  // Agregar método para creación en lote
   async createFoodsBulk(
     localId: string,
-    dishes: Array<{
-      category_id?: number;
-      local_menu_category_id?: number;
-      name: string;
-      description?: string;
-      price: number;
-      discount?: boolean;
-      image_url?: string;
-      available?: boolean;
-    }>
+    dishes: Array<any>
   ) {
     const local = await prisma.local.findUnique({
       where: { id: localId },
     });
     if (!local) {
-      throw new Error("Local not found");
+      throw new Error("Local no encontrado");
     }
 
-    // Validar todas las categorías locales antes de crear
-    const localCategoryIds = dishes
-      .filter((dish) => dish.local_menu_category_id)
-      .map((dish) => dish.local_menu_category_id!);
-
-    if (localCategoryIds.length > 0) {
-      const validCategories = await prisma.localMenuCategory.findMany({
-        where: {
-          id: { in: localCategoryIds },
-          local_id: localId,
-        },
-      });
-
-      if (validCategories.length !== localCategoryIds.length) {
-        throw new Error(
-          "Some local menu categories don't belong to this local"
-        );
-      }
+    // 1. BUSCAMOS UNA CATEGORÍA VÁLIDA DE RESCATE
+    // Buscamos la primera categoría disponible en la base de datos
+    const fallbackCategory = await prisma.foodCategory.findFirst();
+    
+    if (!fallbackCategory) {
+      throw new Error("Debes crear al menos una categoría en el sistema antes de subir un menú por foto.");
     }
 
+    // 2. GUARDAMOS LOS PLATOS CON SEGURIDAD EXTREMA
     const foods = await prisma.$transaction(
       dishes.map((dish) =>
         prisma.food.create({
           data: {
             local_id: localId,
-            category_id: dish.category_id ?? null,
-            local_menu_category_id: dish.local_menu_category_id ?? null,
-            name: dish.name,
-            description: dish.description,
-            price: dish.price,
-            discount: dish.discount ?? false,
-            image_url: dish.image_url ?? null,
+            // Asignamos la categoría del plato, o la de rescate si el OCR no trajo ninguna
+            category_id: dish.category_id ? Number(dish.category_id) : fallbackCategory.id,
+            name: String(dish.name),
+            description: dish.description ? String(dish.description) : null,
+            price: Number(dish.price) || 0,
+            image_url: dish.image_url || null,
             available: dish.available ?? true,
           },
         })

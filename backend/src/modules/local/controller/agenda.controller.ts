@@ -10,9 +10,9 @@ export class AgendaController {
   // =========================================================
 
   /** Listar eventos */
-  async listEvents(req: Request, res: Response) {
+  listEvents = async (req: Request, res: Response) => {
     try {
-      const localId = req.params.localId;
+      const localId = req.params.localId as string;
       const { start, end } = req.query;
 
       if (!localId || typeof start !== "string" || typeof end !== "string") {
@@ -39,10 +39,10 @@ export class AgendaController {
         .status(500)
         .json({ error: error.message || "Internal Server Error" });
     }
-  }
+  };
 
   /** Crear eventos */
-  async createEvent(req: Request, res: Response) {
+  createEvent = async (req: Request, res: Response) => {
     try {
       const data = req.body;
 
@@ -70,12 +70,12 @@ export class AgendaController {
         .status(500)
         .json({ error: error.message || "Internal Server Error" });
     }
-  }
+  };
 
   /** Actualizar eventos */
-  async updateEvent(req: Request, res: Response) {
+  updateEvent = async (req: Request, res: Response) => {
     try {
-      const eventId = req.params.eventId;
+      const eventId = req.params.eventId as string;
       const dataToUpdate = req.body;
 
       if (dataToUpdate.start_time)
@@ -96,12 +96,12 @@ export class AgendaController {
         .status(500)
         .json({ error: error.message || "Internal Server Error" });
     }
-  }
+  };
 
   /** Eliminar eventos */
-  async deleteEvent(req: Request, res: Response) {
+  deleteEvent = async (req: Request, res: Response) => {
     try {
-      const eventId = req.params.eventId;
+      const eventId = req.params.eventId as string;
       await this.agendaService.deleteEvent(eventId);
       return res
         .status(200)
@@ -112,16 +112,16 @@ export class AgendaController {
         .status(500)
         .json({ error: error.message || "Internal Server Error" });
     }
-  }
+  };
 
   // =========================================================
   // CONTROLADOR DE NOTAS
   // =========================================================
 
   /** Listar notas */
-  async listNotes(req: Request, res: Response) {
+  listNotes = async (req: Request, res: Response) => {
     try {
-      const localId = req.params.localId;
+      const localId = req.params.localId as string;
       if (!localId) {
         return res.status(400).json({ error: "Local ID is required." });
       }
@@ -134,10 +134,10 @@ export class AgendaController {
         .status(500)
         .json({ error: error.message || "Internal Server Error" });
     }
-  }
+  };
 
   /** Crear nota */
-  async createNote(req: Request, res: Response) {
+  createNote = async (req: Request, res: Response) => {
     try {
       const data = req.body;
 
@@ -160,12 +160,12 @@ export class AgendaController {
         .status(500)
         .json({ error: error.message || "Internal Server Error" });
     }
-  }
+  };
 
   /** Actualizar nota */
-  async updateNote(req: Request, res: Response) {
+  updateNote = async (req: Request, res: Response) => {
     try {
-      const noteId = req.params.noteId;
+      const noteId = req.params.noteId as string;
       const dataToUpdate = req.body;
 
       if (dataToUpdate.due_date)
@@ -182,12 +182,12 @@ export class AgendaController {
         .status(500)
         .json({ error: error.message || "Internal Server Error" });
     }
-  }
+  };
 
   /** Eliminar nota */
-  async deleteNote(req: Request, res: Response) {
+  deleteNote = async (req: Request, res: Response) => {
     try {
-      const noteId = req.params.noteId;
+      const noteId = req.params.noteId as string;
       await this.agendaService.deleteNote(noteId);
       return res
         .status(200)
@@ -198,5 +198,5 @@ export class AgendaController {
         .status(500)
         .json({ error: error.message || "Internal Server Error" });
     }
-  }
+  };
 }

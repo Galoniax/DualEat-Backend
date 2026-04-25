@@ -23,6 +23,7 @@ import {
   Vote,
   Admin,
   Users,
+  Subscription,
 } from "./index";
 
 // Configuración y utilidades
@@ -31,6 +32,7 @@ import { redisClient } from "./core/config/redis";
 import { API_PREFIX } from "./core/config/config";
 import { initializeSocket } from "./core/config/socket.config";
 import { CleanupJob } from "./core/jobs/cleanup.job";
+import { SubscriptionCron } from "./core/jobs/subscription.cron";
 
 // Inicialización de variables de entorno y aplicación
 dotenv.config();
@@ -53,6 +55,8 @@ async function initializeApp() {
     process.exit(1);
   }
 }
+
+
 
 initializeApp();
 
@@ -131,6 +135,7 @@ app.use(`${API_PREFIX}/menu`, Menu);
 app.use(`${API_PREFIX}/food-categories`, FoodCategory);
 app.use(`${API_PREFIX}/local`, Local);
 app.use(`${API_PREFIX}/order`, Order);
+app.use(`${API_PREFIX}/subscription`, Subscription);
 
 // Middleware de manejo de errores
 app.use(
@@ -148,9 +153,12 @@ app.use(
   }
 );
 
-// Tarea de limpieza
+// Tarea de limpieza y expiración
 const cleanupJob = new CleanupJob();
 cleanupJob.start();
+
+const subscriptionCron = new SubscriptionCron();
+subscriptionCron.start();
 
 // 6. INICIAR SERVIDOR
 httpServer.listen(PORT, () => {

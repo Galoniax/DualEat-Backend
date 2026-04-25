@@ -23,3 +23,5 @@ export { default as Chat } from "./modules/chat/chat.routes";
 export { default as Notification } from "./modules/notification/routes/notification.routes";
 export { default as Admin } from "./routes/admin.routes";
 export { default as Users } from "./routes/users";
+
+export { default as Subscription } from "./modules/subscription/subscriptions.routes";

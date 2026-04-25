@@ -10,15 +10,23 @@ export class FoodService {
         prisma.food.create({
           data: {
             local_id: localId,
+            
             name: dish.name,
             price: dish.price,
             description: null,
+            category_id: 1,
             image_url: null,
             available: true,
           },
         }),
       ),
     );
+  }
+
+  async getFoodsByLocalId(localId: string) {
+    return await prisma.food.findMany({
+      where: { local_id: localId },
+    });
   }
 
   async getLocalWithMenu({ id, slug }: { id?: string; slug?: string }) {
@@ -112,7 +120,6 @@ export class FoodService {
       image_url?: string;
       available?: boolean;
       category_id?: number;
-      local_menu_category_id?: number;
     },
   ) {
     return await prisma.food.update({

@@ -79,6 +79,7 @@ router.put("/foods/:foodId", controller.updateFood);
 // Eliminar un plato
 router.delete("/foods/:foodId", controller.deleteFood);
 
+// Crear un plato
 router.post("/locals/:localId/manual-menu", controller.createFood);
 
 // Crear múltiples comidas en un local (bulk)
@@ -93,7 +94,5 @@ router.post(
   upload.single("menuImage"),
   controller.uploadMenu
 );
-
-router.post("/locals/:localId/manual-menu/bulk", controller.bulkSaveFoods);
 
 export default router;

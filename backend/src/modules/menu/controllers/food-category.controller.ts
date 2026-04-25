@@ -35,7 +35,6 @@ export class FoodCategoryController {
       const newCategory = await this.foodCategoryService.createFoodCategory(
         name,
         tipo as TypesCategory,
-        description,
         icon_url,
       );
       res.status(201).json(newCategory);
@@ -57,7 +56,6 @@ export class FoodCategoryController {
         Number(id),
         name,
         tipo as TypesCategory,
-        description,
         icon_url,
       );
       res.status(200).json(updatedCategory);
@@ -71,8 +69,12 @@ export class FoodCategoryController {
     try {
       await this.foodCategoryService.deleteFoodCategory(Number(id));
       res.status(204).send();
-    } catch (error) {
-      res.status(500).json({ message: "Error deleting category." });
+    } catch (error: any) {
+      console.error("Error deleting food category:", error);
+      res.status(400).json({ 
+        success: false, 
+        message: error.message || "Error al eliminar la categoría." 
+      });
     }
   };
 
@@ -106,34 +108,38 @@ export class FoodCategoryController {
   };
 
   handleCreateLocalMenuCategory = async (req: Request, res: Response) => {
-    const { name, local_id } = req.body;
-    if (!name || !local_id) {
+    const { category_id, local_id } = req.body;
+    if (!category_id || !local_id) {
       return res
         .status(400)
-        .json({ message: "El nombre y el ID del local son obligatorios." });
+        .json({ message: "La categoría y el ID del local son obligatorios." });
     }
     try {
-      const newCategory =
-        await this.foodCategoryService.createLocalMenuCategory(name, local_id);
-      res.status(201).json(newCategory);
+      const updatedLocal =
+        await this.foodCategoryService.createLocalMenuCategory(Number(category_id), local_id);
+      res.status(201).json(updatedLocal);
     } catch (error) {
-      console.error("Error al crear la categoría de menú de local:", error);
+      console.error("Error al vincular categoría al local:", error);
       res
         .status(500)
-        .json({ message: "Error al crear la categoría de menú de local." });
+        .json({ message: "Error al vincular categoría al local." });
     }
   };
 
   handleDeleteLocalMenuCategory = async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const { localId, id: categoryId } = req.params;
+
+    if (!localId || !categoryId) {
+      return res.status(400).json({ message: "Local ID and Category ID are required." });
+    }
 
     try {
-      await this.foodCategoryService.deleteLocalMenuCategory(Number(id));
+      await this.foodCategoryService.deleteLocalMenuCategory(Number(categoryId), localId as string);
       res.status(204).send();
     } catch (error) {
-      console.error("Error al eliminar la categoría:", error);
+      console.error("Error al desvincular la categoría:", error);
       res.status(500).json({
-        message: "Error interno del servidor al eliminar la categoría.",
+        message: "Error interno del servidor al desvincular la categoría.",
       });
     }
   };

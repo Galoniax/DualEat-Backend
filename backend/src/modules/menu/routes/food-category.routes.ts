@@ -17,9 +17,9 @@ router.get("/local/:localId", controller.handleGetLocalMenuCategories);
 // =========================================
 router.post("/", controller.handleCreateLocalMenuCategory);
 
-// 3. RUTA PARA ELIMINAR UNA CATEGORÍA DE COMIDA
+// 3. RUTA PARA DESVINCULAR UNA CATEGORÍA DE COMIDA DE UN LOCAL
 // =========================================
-router.delete("/:id", controller.handleDeleteLocalMenuCategory);
+router.delete("/local/:localId/:id", controller.handleDeleteLocalMenuCategory);
 
 // 4. RUTA PARA OBTENER TODAS LAS CATEGORÍAS DE COMIDA
 // =========================================

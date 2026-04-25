@@ -20,7 +20,18 @@ export const updateLocal = async (localId: string, localData: any) => {
 };
 
 export const deleteLocal = async (localId: string) => {
-  return prisma.local.delete({
-    where: { id: localId },
+  return prisma.$transaction(async (tx) => {
+    await tx.localUser.deleteMany({ where: { local_id: localId } });
+    await tx.localSchedule.deleteMany({ where: { local_id: localId } });
+    await tx.localNote.deleteMany({ where: { local_id: localId } });
+    await tx.localCalendarEvent.deleteMany({ where: { local_id: localId } });
+    await tx.food.deleteMany({ where: { local_id: localId } });
+    await tx.localReview.deleteMany({ where: { local_id: localId } });
+    await tx.subscription.deleteMany({ where: { local_id: localId } });
+    await tx.promotion.deleteMany({ where: { local_id: localId } });
+
+    return tx.local.delete({
+      where: { id: localId },
+    });
   });
 };
