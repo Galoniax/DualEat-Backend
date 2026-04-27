@@ -49,6 +49,8 @@ export class ChatController {
     const { question, conversation, chat_id, recipe_id } = req.body;
     const user_id = (req as any).user?.id || req.body.user_id;
 
+    // TODO: Implementar sistema de créditos para limitar el uso de la IA / Suscripción
+
     try {
       let recipes: PaginatedRecipeResponse | null = null;
       let intent: any = null;
@@ -143,18 +145,21 @@ export class ChatController {
             role: "IA",
           },
         ],
+        recipe_id: recipe_id || null,
       };
+
+      console.log("Recetas: ", recipes?.data);
 
       res.status(200).json({
         success: true,
         data: {
-          ...chat,
+          chat,
           recipes: recipes?.data || null,
           search_query: intent.type === "SEARCH" ? intent.query : null,
         },
       });
 
-      this.chatSessionService.addMessage(user_id, chat, null).catch((e) => {
+      this.chatSessionService.addMessage(user_id, chat).catch((e) => {
         console.error("Error crítico guardando en DB el historial de chat:", e);
       });
     } catch (e) {
@@ -171,13 +176,12 @@ export class ChatController {
   getById = async (req: Request, res: Response) => {
     const { chat_id } = req.params;
     const user_id = (req as any).user?.id || req.body.user_id;
+
     try {
       const chat = await this.chatSessionService.getById(
         String(user_id),
         String(chat_id),
       );
-
-      console.log("CHAT", chat);
 
       if (!chat) {
         return res
@@ -199,8 +203,13 @@ export class ChatController {
   // =========================================================
   getUserChats = async (req: Request, res: Response) => {
     const user_id = (req as any).user?.id || req.body.user_id;
+    const { search } = req.query;
+
     try {
-      const chats = await this.chatSessionService.getUserChats(String(user_id));
+      const chats = await this.chatSessionService.getUserChats(
+        String(user_id),
+        String(search),
+      );
 
       if (!chats) {
         return res
@@ -287,7 +296,9 @@ export class ChatController {
   deleteAllChats = async (req: Request, res: Response) => {
     const user_id = (req as any).user?.id || req.body.user_id;
     try {
-      const chats = await this.chatSessionService.deleteAllChats(String(user_id));
+      const chats = await this.chatSessionService.deleteAllChats(
+        String(user_id),
+      );
 
       if (!chats) {
         return res
