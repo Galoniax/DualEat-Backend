@@ -8,6 +8,7 @@ import { StatisticsService } from "../service/statistics.service";
 import { QrService } from "../../../core/services/qr.service";
 import { CalendarService } from "../service/calendar.service";
 import { DiscoveryService } from "../service/discovery.service";
+import { EmployeeService } from "../service/employee.service";
 
 import { LocalController } from "../controllers/local.controller";
 import { AgendaController } from "../controllers/agenda.controller";
@@ -21,11 +22,13 @@ const statisticsService = new StatisticsService();
 const qrService = new QrService();
 const agendaService = new CalendarService();
 const discoveryService = new DiscoveryService(new FoodService());
+const employeeService = new EmployeeService();
 
 const controller = new LocalController(
   settingsService,
   statisticsService,
   qrService,
+  employeeService,
 );
 const agendaController = new AgendaController(agendaService);
 const discoveryController = new DiscoveryController(discoveryService);
@@ -131,5 +134,10 @@ router.get("/statistics/:id/monthly-earnings", controller.getMonthlyEarnings);
 
 // QR Code
 router.get("/tools/qr/:localId", controller.generateQrCode);
+
+// Empleados
+router.get("/employees/:localId", controller.getEmployees);
+router.post("/employees/:localId", controller.addEmployee);
+router.delete("/employees/:localId/:userId", controller.removeEmployee);
 
 export default router;

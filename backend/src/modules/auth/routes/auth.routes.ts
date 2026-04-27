@@ -119,6 +119,20 @@ router.get(
         }
       }
 
+      // ============================================================
+      // RESTRICCIÓN DE PERSONAL (STAFF) EN WEB
+      // ============================================================
+      if (!isMobile) {
+        const hasStaffRole = workplaces.some(w => w.role === 'staff');
+        const hasAdminRole = workplaces.some(w => w.role === 'admin');
+        const isOwner = user.isBusiness;
+        const isSuperAdmin = user.role === 'ADMIN';
+
+        if (hasStaffRole && !hasAdminRole && !isOwner && !isSuperAdmin) {
+          return res.redirect(`${process.env.FRONTEND_URL}/login?error=staff_restriction`);
+        }
+      }
+
       const workplaceData = workplaces.map(workplace => ({
         id: (workplace as any).local.id,
         slug: (workplace as any).local.slug,

@@ -35,7 +35,7 @@ export class AuthController {
   // =========================================================
   async login(req: Request, res: Response) {
     try {
-      const { email, password, remember, recaptcha, deviceId } = req.body;
+      const { email, password, remember, recaptcha, deviceId, platform } = req.body;
 
       const params = new URLSearchParams();
 
@@ -105,6 +105,27 @@ export class AuthController {
           success: false,
           message: "Credenciales incorrectas",
         });
+      }
+
+      // ============================================================
+      // 4. RESTRICCIÓN DE PERSONAL (STAFF) EN WEB
+      // ============================================================
+      if (platform !== 'mobile') {
+        const localUserAssociations = await prisma.localUser.findMany({
+          where: { user_id: user.id }
+        });
+
+        const hasStaffRole = localUserAssociations.some(lu => lu.role === 'staff');
+        const hasAdminRole = localUserAssociations.some(lu => lu.role === 'admin');
+        const isOwner = (user as any).is_business;
+        const isSuperAdmin = user.role === 'ADMIN';
+
+        if (hasStaffRole && !hasAdminRole && !isOwner && !isSuperAdmin) {
+          return res.status(403).json({
+            success: false,
+            message: "Esta cuenta está asignada como personal de un local y solo puede acceder desde la aplicación móvil."
+          });
+        }
       }
 
       if (user.is_business) {

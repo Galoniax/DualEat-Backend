@@ -10,6 +10,7 @@ export class LocalController {
     private settingsService: SettingsService,
     private stadisticsService: StatisticsService,
     private qrService: QrService,
+    private employeeService: any // Using any to avoid type issues if not imported yet, or I'll add the import
   ) {}
 
   // =========================================================
@@ -219,6 +220,55 @@ export class LocalController {
       return res
         .status(500)
         .json({ success: false, message: "Error interno del servidor" });
+    }
+  };
+
+  // =========================================================
+  // GESTIÓN DE EMPLEADOS
+  // =========================================================
+  getEmployees = async (req: Request, res: Response) => {
+    try {
+      const { localId } = req.params;
+      if (!localId) return res.status(400).json({ error: "Local ID es obligatorio" });
+
+      const employees = await this.employeeService.listEmployees(localId);
+      return res.status(200).json({ success: true, data: employees });
+    } catch (e) {
+      console.error("Error getEmployees:", e);
+      return res.status(500).json({ success: false, message: "Error al obtener empleados" });
+    }
+  };
+
+  addEmployee = async (req: Request, res: Response) => {
+    try {
+      const { localId } = req.params;
+      const { email, name, password } = req.body;
+
+      if (!localId || !email) {
+        return res.status(400).json({ error: "Local ID y email son obligatorios" });
+      }
+
+      const result = await this.employeeService.addEmployee(localId, email, name, password);
+      return res.status(201).json({ success: true, message: "Empleado añadido correctamente", data: result });
+    } catch (e: any) {
+      console.error("Error addEmployee:", e);
+      return res.status(400).json({ success: false, message: e.message || "Error al añadir empleado" });
+    }
+  };
+
+  removeEmployee = async (req: Request, res: Response) => {
+    try {
+      const { localId, userId } = req.params;
+
+      if (!localId || !userId) {
+        return res.status(400).json({ error: "Local ID y User ID son obligatorios" });
+      }
+
+      await this.employeeService.removeEmployee(localId, userId);
+      return res.status(200).json({ success: true, message: "Empleado eliminado correctamente" });
+    } catch (e) {
+      console.error("Error removeEmployee:", e);
+      return res.status(500).json({ success: false, message: "Error al eliminar empleado" });
     }
   };
 }
