@@ -24,10 +24,12 @@ export class AIService {
     question: string,
   ): Promise<{ type: "SEARCH" | "CHAT"; query: string | null }> {
     const systemPrompt = `Analiza la intención del usuario en la app DualEat.
-    - Si busca recetas, ingredientes o comida (ej: "pollo", "tengo hambre", "que me puedo preparar con..."), type="SEARCH" y query=palabra clave.
-    - Si saluda o hace preguntas generales, type="CHAT" y query=null.
-    
-    Responde ÚNICAMENTE con un JSON válido usando exactamente esta estructura:
+    - Si busca recetas o ingredientes, type="SEARCH". 
+    - IMPORTANTE: En "query", extrae solo las palabras clave esenciales (sustantivos). Elimina palabras como "receta", "dame", "con", "de", "quiero".
+    - Ejemplo: "Dame una receta con papas fritas" -> query="papas fritas".
+    - Ejemplo: "Como cocinar pollo al horno" -> query="pollo horno".
+
+    Responde ÚNICAMENTE con un JSON válido:
     {
       "type": "SEARCH" | "CHAT",
       "query": "string o null"
@@ -75,16 +77,14 @@ export class AIService {
     const sliced = safe.slice(-10);
 
     // 2. Mapear el historial previo
-    const history = (Array.isArray(sliced) ? sliced : []).map(
-      (msg) => ({
-        role:
-          msg.role.toLowerCase() === "ia" ||
-          msg.role.toLowerCase() === "assistant"
-            ? "assistant"
-            : "user",
-        content: msg.text || msg.content,
-      }),
-    );
+    const history = (Array.isArray(sliced) ? sliced : []).map((msg) => ({
+      role:
+        msg.role.toLowerCase() === "ia" ||
+        msg.role.toLowerCase() === "assistant"
+          ? "assistant"
+          : "user",
+      content: msg.text || msg.content,
+    }));
 
     messages.push(...history);
 

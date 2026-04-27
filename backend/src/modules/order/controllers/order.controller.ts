@@ -45,7 +45,7 @@ export class OrderController {
     }
     try {
       const orders = await this.orderService.getUserOrders(
-        user_id,
+        String(user_id),
         Number(page),
       );
 

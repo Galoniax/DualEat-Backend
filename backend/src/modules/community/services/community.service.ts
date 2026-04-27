@@ -1,55 +1,61 @@
 import { prisma } from "../../../core/database/prisma/prisma";
 import { Prisma } from "@prisma/client";
-import { CreateCommunityDTO } from "../../../shared/interfaces/dto/community.dto";
-
-import { generateUniqueSlug } from "../../../shared/utils/sluglify";
+import { CommunityDTO } from "../../../shared/interfaces/dto/community.dto";
+import { generateSlug } from "../../../shared/utils/sluglify";
 
 export class CommunityService {
-  /** CREATE COMMUNITY */
-  async createCommunity(data: CreateCommunityDTO) {
-    const communityModel = prisma.community;
+  // CREAR COMUNIDAD
+  // =========================================================
+  async create(community: CommunityDTO, user_id: string) {
     try {
-      console.log(
-        "Intentando crear comunidad con creator_id:",
-        data.creator_id
-      );
-      const slug = await generateUniqueSlug(data.name, communityModel);
       const result = await prisma.$transaction(
         async (tx: Prisma.TransactionClient) => {
-          const community = await tx.community.create({
+          const result = await tx.community.create({
             data: {
-              name: data.name,
-              slug: slug,
-              description: data.description,
-              image_url: data.image_url,
-              visibility: data.visibility,
-              creator_id: data.creator_id,
+              name: community.name,
+              slug: generateSlug(community.name),
+              description: community.description,
+              image_url: community.image_url,
+              banner_url: community.banner_url,
+              creator_id: user_id,
               total_members: 1,
               tags: {
-                connect: data.selectedTags.map((id) => ({ id })),
+                connect: community.tags.map((id) => ({ id })),
               },
             },
-            include: { tags: true },
           });
 
           await tx.communityMember.create({
             data: {
-              user_id: data.creator_id,
-              community_id: community.id,
+              user_id: user_id,
+              community_id: result.id,
               is_moderator: true,
             },
           });
-          return community;
-        }
+          return result;
+        },
       );
       return result;
-    } catch (error) {
-      throw new Error(`Error al crear comunidad: ${error}`);
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError) {
+        if (e.code === "P2002") {
+          const target = e.meta?.target as string[];
+
+          if (target.includes("name")) {
+            throw new Error("Ya existe una comunidad con este nombre.");
+          }
+          if (target.includes("slug")) {
+            throw new Error("Error de colisión, por favor intenta de nuevo.");
+          }
+        }
+      }
+      throw e;
     }
   }
 
-  /** JOIN COMMUNITY */
-  async joinCommunity(user_id: string, community_id: string) {
+  // UNIRSE O ABANDONAR UNA COMUNIDAD
+  // =========================================================
+  async joinLeave(user_id: string, community_id: string, join: boolean) {
     try {
       const result = await prisma.$transaction(
         async (tx: Prisma.TransactionClient) => {
@@ -59,201 +65,63 @@ export class CommunityService {
             },
           });
 
-          if (exists) {
+          if (exists && join) {
             throw new Error("Ya perteneces a la comunidad");
-          } else {
-            const member = await tx.communityMember.create({
-              data: { user_id, community_id },
+          }
+
+          if (!exists && !join) {
+            throw new Error("No es miembro");
+          }
+
+          let member;
+          if (join) {
+            member = await tx.communityMember.create({
+              data: {
+                user_id,
+                community_id,
+              },
             });
 
             await tx.community.update({
               where: { id: community_id },
               data: { total_members: { increment: 1 } },
             });
+          } else {
+            member = await tx.communityMember.delete({
+              where: {
+                user_id_community_id: { user_id, community_id },
+              },
+            });
 
-            return member;
+            await tx.community.update({
+              where: { id: community_id },
+              data: { total_members: { decrement: 1 } },
+            });
           }
-        }
+
+          return member;
+        },
       );
-
       return result;
-    } catch (error) {
-      throw new Error(`${error}`);
+    } catch (e) {
+      throw new Error(`${e}`);
     }
   }
 
-  /** LEAVE COMMUNITY */
-  async leaveCommunity(user_id: string, community_id: string) {
-    console.log(
-      "Intentando abandonar comunidad con user_id:",
-      user_id,
-      "y community_id:",
-      community_id
-    );
-    const result = await prisma.$transaction(
-      async (tx: Prisma.TransactionClient) => {
-        const exists = await tx.communityMember.findUnique({
-          where: {
-            user_id_community_id: {
-              user_id: user_id,
-              community_id: community_id,
-            },
-          },
-        });
-        if (!exists) throw new Error("No es miembro");
-
-        await tx.communityMember.delete({
-          where: {
-            user_id_community_id: {
-              user_id: user_id,
-              community_id: community_id,
-            },
-          },
-        });
-
-        await tx.community.update({
-          where: { id: community_id },
-          data: { total_members: { decrement: 1 } },
-        });
-
-        return exists;
-      }
-    );
-
-    return result;
-  }
-
-  /** EXPLORE COMMUNITIES */
-  async getRecommendedCommunities(user_id: string) {
-    try {
-      const userCommunityPreferences = await prisma.userPreference.findMany({
-        where: {
-          user_id: user_id,
-          community_tag_id: {
-            not: null,
-          },
-        },
-        select: {
-          community_tag_id: true,
-        },
-      });
-
-      const preferredTagIds = userCommunityPreferences
-        .map((preference: any) => preference.community_tag_id)
-        .filter((id: number): id is number => id !== null);
-
-      // Check if the user has any community preferences
-      if (preferredTagIds.length > 0) {
-        // Logic for users with preferences (personalized recommendations)
-        const result = await prisma.community.findMany({
-          where: {
-            active: true,
-            tags: {
-              some: {
-                id: {
-                  in: preferredTagIds,
-                },
-              },
-            },
-            members: {
-              none: {
-                user_id: user_id,
-              },
-            },
-          },
-          include: { tags: true },
-          // You can also order by some relevance score here
-          take: 20,
-        });
-
-        return result;
-      } else {
-        // Fallback logic for users with no preferences
-        // Get the most popular communities overall
-        const popularCommunities = await prisma.community.findMany({
-          where: {
-            active: true,
-            members: {
-              none: {
-                user_id: user_id,
-              },
-            },
-          },
-          include: { tags: true },
-          take: 20,
-        });
-
-        return popularCommunities;
-      }
-    } catch (error) {
-      throw new Error(`Error al obtener comunidades recomendadas: ${error}`);
-    }
-  }
-
-  // Generar solo una función y devolver todo
-  async getPopularCommunities() {
-    try {
-      const result = await prisma.community.findMany({
-        where: { active: true },
-        orderBy: { total_members: "desc" },
-        take: 20,
-        include: {
-          tags: true,
-          members: true,
-        },
-      });
-      return result;
-    } catch (error) {
-      throw new Error(`Error al obtener comunidades populares: ${error}`);
-    }
-  }
-
-  async getTrendingCommunities() {
-    const trendingCommunities = await prisma.community.findMany({
-      where: {
-        active: true,
-        posts: {
-          some: {
-            created_at: {
-              gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3),
-            },
-            votes_up: { gte: 10 },
-            total_comments: { gte: 5 },
-          },
-        },
-      },
-      orderBy: {
-        updated_at: "desc",
-      },
-      take: 10,
-      include: {
-        tags: true,
-        posts: true,
-      },
-    });
-
-    return trendingCommunities;
-  }
-
-  async getAllCommunities(take: boolean) {
-    try {
-      const result = await prisma.community.findMany({
-        include: { tags: true },
-        take: take ? 20 : undefined,
-        orderBy: { total_members: "desc" },
-      });
-      return result;
-    } catch (error) {
-      throw new Error(`Error al obtener todas las comunidades: ${error}`);
-    }
-  }
-
-  /** GET COMMUNITY (by slug) */
-  async getCommunity(slug: string, user_id?: string) {
+  // OBTENER COMUNIDAD (by slug)
+  // =========================================================
+  async getBySlug(slug: string, user_id?: string) {
     try {
       const community = await prisma.community.findUnique({
         where: { slug },
-        include: { tags: true },
+        include: {
+          tags: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
       });
 
       if (!community) {
@@ -285,110 +153,109 @@ export class CommunityService {
         isMember,
         receives_notifications,
       };
-    } catch (error) {
-      throw new Error(`Error al obtener comunidad: ${error}`);
+    } catch (e) {
+      throw new Error(`Error al obtener comunidad: ${e}`);
     }
   }
 
-  /** GET COMMUNITY POSTS */
-  async getCommunityPosts(page: number, community_id: string, user_id: string) {
+  // OBTENER COMUNIDAD (by name)
+  // =========================================================
+  async getByName(name: string) {
     try {
-      const pageSize = 20;
-      const skipAmount = (page - 1) * pageSize;
-
-      const posts = await prisma.post.findMany({
+      const community = await prisma.community.findFirst({
         where: {
-          community_id,
+          name: { contains: name.trim(), mode: "insensitive" },
           active: true,
         },
-        orderBy: {
-          created_at: "desc",
-        },
-        skip: skipAmount,
-        take: pageSize,
-        include: {
-          community: {
-            select: {
-              slug: true,
-            },
-          },
-          recipe: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-              main_image: true,
-              total_time: true,
-              _count: {
-                select: {
-                  steps: true,
-                  ingredients: true,
-                },
-              },
-            },
-          },
-          user: {
-            select: {
-              id: true,
-              name: true,
-              avatar_url: true,
-              slug: true,
-            },
-          },
-        },
-      });
-
-      // Obtener votos del usuario
-      const votes = await prisma.vote.findMany({
-        where: {
-          user_id: user_id,
-          content_type: "POST",
-          content_id: {
-            in: posts.map((post) => post.id),
-          },
-        },
         select: {
-          vote_type: true,
-          content_id: true,
+          id: true,
+          name: true,
+          slug: true,
+          image_url: true,
+          description: true,
+          total_members: true,
+          tags: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       });
 
-      // Crear mapa de votos para acceso rápido
-      const voteMap = new Map(
-        votes.map((vote) => [vote.content_id, vote.vote_type])
-      );
+      if (!community) {
+        return null;
+      }
 
-      // Combinar posts con información de votos
-      const postsWithVotes = posts.map((post) => ({
-        ...post,
-        userVote: voteMap.get(post.id) || null,
-        hasVoted: voteMap.has(post.id),
-      }));
-
-      return {
-        data: postsWithVotes,
-        pagination: {
-          page,
-          hasMore: posts.length >= pageSize,
-        },
-      };
-    } catch (error) {
-      throw new Error(`Error al obtener posts: ${error}`);
+      return community;
+    } catch (e: any) {
+      return null;
     }
   }
 
+  // OBTENER COMUNIDADES DEL USUARIO
+  // =========================================================
   async getUserCommunities(user_id: string) {
     try {
       const result = await prisma.communityMember.findMany({
         where: { user_id },
-        include: { community: true },
+        select: {
+          community: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              image_url: true,
+              description: true,
+              total_members: true,
+              tags: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
       });
       return result;
-    } catch (error) {
-      throw new Error(`Error al obtener comunidades del usuario: ${error}`);
+    } catch (e) {
+      throw new Error(`Error al obtener comunidades del usuario: ${e}`);
     }
   }
 
+  // OBTENER COMUNIDAD (by category)
+  // =========================================================
+  async getByTagSkeleton(tag_id: number) {
+    try {
+      const result = await prisma.community.findMany({
+        where: {
+          tags: {
+            some: {
+              id: tag_id,
+            },
+          },
+        },
+        take: 10,
+        orderBy: { total_members: "desc" },
+
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          image_url: true,
+          description: true,
+          total_members: true,
+        },
+      });
+      return result;
+    } catch (e) {
+      throw new Error(`Error al obtener comunidades por tag: ${e}`);
+    }
+  }
+
+  // OBTENER COMUNIDAD (by tag) (PAGINATION)
+  // =========================================================
   async getCommunitiesByTag(tagId: number) {
     try {
       const communities = await prisma.community.findMany({
@@ -409,7 +276,6 @@ export class CommunityService {
       return communities;
     } catch (error) {
       console.error("Error fetching communities by tag:", error);
-      // You should re-throw the error or return a consistent error object.
       throw new Error("Failed to fetch communities by tag.");
     }
   }

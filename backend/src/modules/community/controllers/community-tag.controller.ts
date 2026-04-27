@@ -21,8 +21,8 @@ export class CommunityTagController {
           .json({ success: false, message: "No se encontraron categorias" });
 
       return res.status(200).json({ success: true, data: tagCategories });
-    } catch (error) {
-      res.status(500).json({
+    } catch (e) {
+      return res.status(500).json({
         success: false,
         message: "Error al obtener categorias de tags",
       });
@@ -30,24 +30,9 @@ export class CommunityTagController {
   };
 
   // =========================================================
-  // CREAR ETIQUETA (POST)
-  // =========================================================
-  create = async (req: Request, res: Response) => {
-    const { data } = req.body;
-    try {
-      const tag = await this.communityTagService.createCommunityTag(data);
-      return res.status(201).json({ success: true, data: tag });
-    } catch (error) {
-      res
-        .status(500)
-        .json({ success: false, message: "Error al crear la etiqueta" });
-    }
-  };
-
-  // =========================================================
   // OBTENER TODAS LAS ETIQUETAS
   // =========================================================
-  getAll = async (req: Request, res: Response) => {
+  getAllTags = async (req: Request, res: Response) => {
     try {
       const tags = await this.communityTagService.getAllCommunityTags();
 
@@ -58,28 +43,52 @@ export class CommunityTagController {
 
       return res.status(200).json({ success: true, data: tags });
     } catch (e) {
-      res
+      return res
         .status(500)
         .json({ success: false, message: "Error al obtener las etiquetas" });
     }
   };
 
   // =========================================================
-  // OBTENER ETIQUETA POR ID
+  // CREAR ETIQUETA (POST)
+  // =========================================================
+  create = async (req: Request, res: Response) => {
+    const { data } = req.body;
+    try {
+      const tag = await this.communityTagService.createCommunityTag(data);
+
+      if (!tag) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Error al crear la etiqueta" });
+      }
+
+      return res.status(201).json({ success: true, data: tag });
+    } catch (e) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Error al crear la etiqueta" });
+    }
+  };
+
+  // =========================================================
+  // OBTENER ETIQUETAS POR ID DE CATEGORIA
   // =========================================================
   getByCategoryId = async (req: Request, res: Response) => {
-    const { id } = req.query;
+    const { category_id } = req.params;
     try {
-      const tag = await this.communityTagService.getByIdCategory(Number(id));
+      const tag = await this.communityTagService.getByCategoryId(
+        Number(category_id),
+      );
       if (tag) {
-        res.status(200).json({ success: true, data: tag });
+        return res.status(200).json({ success: true, data: tag });
       } else {
-        res
+        return res
           .status(404)
           .json({ success: false, message: "Etiqueta no encontrada" });
       }
-    } catch (error) {
-      res
+    } catch (e) {
+      return res
         .status(500)
         .json({ success: false, message: "Error al obtener la etiqueta" });
     }
@@ -96,14 +105,14 @@ export class CommunityTagController {
         data,
       );
       if (updatedTag) {
-        res.status(200).json({ success: true, data: updatedTag });
+        return res.status(200).json({ success: true, data: updatedTag });
       } else {
-        res
+        return res
           .status(404)
           .json({ success: false, message: "Etiqueta no encontrada" });
       }
-    } catch (error) {
-      res
+    } catch (e) {
+      return res
         .status(500)
         .json({ success: false, message: "Error al actualizar la etiqueta" });
     }
@@ -117,14 +126,14 @@ export class CommunityTagController {
     try {
       const deleted = await this.communityTagService.deleteCommunityTag(id);
       if (deleted) {
-        res.status(204).send();
+        return res.status(204).send();
       } else {
-        res
+        return res
           .status(404)
           .json({ success: false, message: "Etiqueta no encontrada" });
       }
     } catch (error) {
-      res
+      return res
         .status(500)
         .json({ success: false, message: "Error al eliminar la etiqueta" });
     }

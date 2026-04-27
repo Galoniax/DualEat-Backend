@@ -38,20 +38,31 @@ export class ChatSessionService {
   // =========================================================
   // OBTENER TODOS LOS CHATS DE UN USUARIO
   // =========================================================
-  async getUserChats(u_id: string): Promise<ChatSession[] | null> {
+  async getUserChats(
+    u_id: string,
+    search?: string,
+  ): Promise<ChatSession[] | null> {
     try {
       const pattern = `${this.SESSION_PREFIX}${u_id}/*`;
-
       const keys = await this.sessionService.keys(pattern);
 
       const chats: ChatSession[] = [];
 
+      const normalizedSearch = search?.toLowerCase().trim();
+
       for (const key of keys) {
         const data = await this.sessionService.get(key);
+
         if (data) {
           const chatData = JSON.parse(data);
 
           if (chatData) {
+            if (
+              normalizedSearch &&
+              !chatData.title.toLowerCase().includes(normalizedSearch)
+            ) {
+              continue;
+            }
             chats.push({
               chat_id: chatData.chat_id,
               title: chatData.title,
@@ -80,7 +91,6 @@ export class ChatSessionService {
   async addMessage(
     u_id: string, // user_id
     chat: ChatSession,
-    r_id: string | null = null, // recipe_id
   ) {
     if (!u_id || !chat.chat_id)
       throw new Error("ID de usuario y chat requeridos.");
@@ -104,9 +114,10 @@ export class ChatSessionService {
         chatData.messages.push(...chat.messages);
         chatData.lastActivity = new Date().toISOString();
 
-        if (chat.recipe_id !== undefined) {
+        chatData.title = chat.title;
+        
+        if (chat.recipe_id) {
           chatData.recipe_id = chat.recipe_id;
-          chatData.title = chat.title;
         }
 
         // 1. Guardar en Redis (Guardamos la sesión con un TTL (en segundos))
@@ -123,7 +134,7 @@ export class ChatSessionService {
           createdAt: chat.createdAt,
           lastActivity: chat.lastActivity,
           messages: chat.messages,
-          recipe_id: r_id || undefined,
+          recipe_id: chat.recipe_id || undefined,
         };
 
         await this.sessionService.set(redisKey, JSON.stringify(chatData), ttl);

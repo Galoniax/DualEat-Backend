@@ -59,11 +59,6 @@ enum OrderStatus {
   READY // Pedido listo para pagar
 }
 
-enum Visibility {
-  PUBLIC
-  PRIVATE
-}
-
 enum LocalUserRole {
   admin
   staff
@@ -193,6 +188,8 @@ model User {
   preferences         UserPreference[]
   recipes             Recipe[]
 
+  received_replies PostComment[] @relation("RepliedUser")
+
   @@index([email])
 }
 
@@ -232,7 +229,6 @@ model Notification {
 // ========================================================
 // MODELO DE NEGOCIOS Y LOCALES
 // ========================================================
-
 model Local {
   id          String  @id @default(nanoid(10)) @map("id")
   slug        String  @unique
@@ -442,7 +438,6 @@ model Promotion {
 // MODELO DE VOTOS
 // ========================================================
 model Vote {
-  id           Int         @id @default(autoincrement())
   user         User        @relation("UserVotes", fields: [user_id], references: [id])
   user_id      String
   content_type ContentType
@@ -451,25 +446,26 @@ model Vote {
   created_at   DateTime    @default(now())
   updated_at   DateTime    @updatedAt
 
-  @@unique([user_id, content_type, content_id])
+  @@id([user_id, content_id, content_type])
 }
 
 // ========================================================
 // MODELO DE COMUNIDADES
 // ========================================================
 model Community {
-  id            String     @id @default(nanoid(10)) @map("id")
-  slug          String     @unique
-  name          String
-  description   String
-  image_url     String?
-  visibility    Visibility @default(PUBLIC)
-  total_members Int        @default(0)
-  creator       User       @relation("Creator", fields: [creator_id], references: [id])
+  id          String  @id @default(nanoid(10)) @map("id")
+  slug        String  @unique
+  name        String  @unique
+  description String
+  image_url   String?
+  banner_url  String?
+
+  total_members Int      @default(0)
+  creator       User     @relation("Creator", fields: [creator_id], references: [id])
   creator_id    String
-  created_at    DateTime   @default(now())
-  updated_at    DateTime   @updatedAt
-  active        Boolean    @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  active        Boolean  @default(true)
 
   members CommunityMember[]
   posts   Post[]
@@ -490,12 +486,13 @@ model TagCategory {
 }
 
 model CommunityTag {
-  id          Int          @id @default(autoincrement())
-  name        String       @unique
-  category    TagCategory? @relation(fields: [category_id], references: [id])
-  category_id Int?
+  id     Int     @id @default(autoincrement())
+  name   String  @unique
+  active Boolean @default(true)
 
-  active           Boolean          @default(true)
+  category_id Int?
+  category    TagCategory? @relation(fields: [category_id], references: [id])
+
   communities      Community[]      @relation("CommunityTags")
   user_preferences UserPreference[]
 }
@@ -504,7 +501,7 @@ model CommunityMember {
   id                     String                @id @default(cuid()) @map("id")
   user                   User                  @relation(fields: [user_id], references: [id])
   user_id                String
-  community              Community             @relation(fields: [community_id], references: [id])
+  community              Community             @relation(fields: [community_id], references: [id], onDelete: Cascade)
   community_id           String
   receives_notifications NotificationFrequency @default(ALWAYS)
   joined_at              DateTime              @default(now())
@@ -538,7 +535,7 @@ model Recipe {
 
 model RecipeIngredient {
   id            String     @id @default(cuid()) @map("id")
-  recipe        Recipe     @relation(fields: [recipe_id], references: [id])
+  recipe        Recipe     @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
   recipe_id     String
   ingredient    Ingredient @relation(fields: [ingredient_id], references: [id])
   ingredient_id Int
@@ -551,7 +548,7 @@ model RecipeIngredient {
 
 model RecipeStep {
   id             String  @id @default(cuid()) @map("id")
-  recipe         Recipe  @relation(fields: [recipe_id], references: [id])
+  recipe         Recipe  @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
   recipe_id      String
   step_number    Int
   description    String
@@ -585,7 +582,7 @@ model Post {
   active         Boolean  @default(true)
 
   comments  PostComment[]
-  recipe    Recipe?       @relation(fields: [recipe_id], references: [id])
+  recipe    Recipe?       @relation(fields: [recipe_id], references: [id], onDelete: SetNull)
   recipe_id String?
 }
 
@@ -593,17 +590,20 @@ model PostComment {
   id                String       @id @default(cuid()) @map("id")
   user              User         @relation(fields: [user_id], references: [id])
   user_id           String
-  post              Post         @relation(fields: [post_id], references: [id])
+  post              Post         @relation(fields: [post_id], references: [id], onDelete: Cascade)
   post_id           String
-  parent_comment    PostComment? @relation("CommentReplies", fields: [parent_comment_id], references: [id])
+  parent_comment    PostComment? @relation("CommentReplies", fields: [parent_comment_id], references: [id], onDelete: Cascade)
   parent_comment_id String?
-  content           String
-  votes_up          Int          @default(0)
-  votes_down        Int          @default(0)
-  created_at        DateTime     @default(now())
-  updated_at        DateTime     @updatedAt
-  edited            Boolean      @default(false)
-  active            Boolean      @default(true)
+
+  reply_to_user_id String?
+  reply_to_user    User?   @relation("RepliedUser", fields: [reply_to_user_id], references: [id])
+
+  content    String
+  votes_up   Int      @default(0)
+  votes_down Int      @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  active     Boolean  @default(true)
 
   replies PostComment[] @relation("CommentReplies")
 
