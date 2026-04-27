@@ -38,7 +38,7 @@ export class CleanupJob {
         },
       });
 
-      console.log(`🧹 Se eliminaron ${result.count} notificaciones antiguas.`);
+      console.log(`Se eliminaron ${result.count} notificaciones antiguas.`);
     } catch (error) {
       console.error("Error durante la limpieza:", error);
     } finally {
