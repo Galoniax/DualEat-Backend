@@ -2,12 +2,14 @@ import { prisma } from "../../core/database/prisma/prisma";
 import { ContentType, VoteType, Prisma } from "@prisma/client";
 
 export class VoteService {
-  /** ACTUALIZAR VOTOS */
+  // =========================================================
+  // ACTUALIZAR VOTOS (private)
+  // =========================================================
   private async updateContentVotes(
     tx: Prisma.TransactionClient,
     content_type: ContentType,
     content_id: string,
-    data: any
+    data: any,
   ) {
     if (content_type === ContentType.POST) {
       return tx.post.update({ where: { id: content_id }, data });
@@ -18,20 +20,26 @@ export class VoteService {
     throw new Error("Tipo de contenido no soportado");
   }
 
-  /** CREAR VOTO */
-  async createVote(
+  // =========================================================
+  // CREAR VOTO
+  // =========================================================
+  async create(
     vote_type: VoteType,
     content_id: string,
     content_type: ContentType,
-    user_id: string
+    user_id: string,
   ) {
     try {
       const result = await prisma.$transaction(async (tx) => {
-        const existingVote = await tx.vote.findFirst({
+        const voteComposite = {
+          user_id,
+          content_id,
+          content_type,
+        };
+
+        const existingVote = await tx.vote.findUnique({
           where: {
-            user_id,
-            content_id,
-            content_type,
+            user_id_content_id_content_type: voteComposite,
           },
         });
 
@@ -40,7 +48,7 @@ export class VoteService {
          */
         if (existingVote && existingVote.vote_type === vote_type) {
           await tx.vote.delete({
-            where: { id: existingVote.id },
+            where: { user_id_content_id_content_type: voteComposite },
           });
 
           const decrementData =
@@ -52,7 +60,7 @@ export class VoteService {
             tx,
             content_type,
             content_id,
-            decrementData
+            decrementData,
           );
 
           return { action: "deleted", vote: null };
@@ -63,7 +71,7 @@ export class VoteService {
          */
         if (existingVote) {
           const updatedVote = await tx.vote.update({
-            where: { id: existingVote.id },
+            where: { user_id_content_id_content_type: voteComposite },
             data: {
               vote_type,
               updated_at: new Date(),
@@ -84,7 +92,7 @@ export class VoteService {
             tx,
             content_type,
             content_id,
-            updateData
+            updateData,
           );
 
           return { action: "updated", vote: updatedVote };
@@ -110,7 +118,7 @@ export class VoteService {
             tx,
             content_type,
             content_id,
-            incrementData
+            incrementData,
           );
 
           return { action: "created", vote: newVote };
@@ -118,9 +126,9 @@ export class VoteService {
       });
 
       return result;
-    } catch (error) {
-      console.error("Error en createVote:", error);
-      throw error;
+    } catch (e) {
+      console.log("Error en el servicio de votos:", e);
+      throw e;
     }
   }
 }

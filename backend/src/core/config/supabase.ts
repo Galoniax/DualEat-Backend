@@ -5,40 +5,44 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error("Missing Supabase environment variables");
+  throw new Error("Variables de entorno de Supabase no encontradas");
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Cliente de administrador (para operaciones del lado del servidor que requieren permisos elevados)
-export const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: {
-    persistSession: false, // Opcional, pero recomendado para el backend
+export const supabaseAdmin = createClient(
+  SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY,
+  {
+    auth: {
+      persistSession: false,
+    },
   },
-});
+);
 
-export async function uploadAndGetUrl(file: Express.Multer.File, bucket: string, pathPrefix: string, retries?: number): Promise<string>;
-export async function uploadAndGetUrl(files: Express.Multer.File[], bucket: string, pathPrefix: string, retries?: number): Promise<string[]>;
-
-// Subir uno o varios archivos a Supabase Storage y obtener sus URLs públicas
-export async function uploadAndGetUrl(
-  fileOrFiles: Express.Multer.File | Express.Multer.File[],
+// =========================================================
+// SUBIR ARCHIVOS A SUPABASE STORAGE
+// =========================================================
+export async function uploadFiles(
+  files: Express.Multer.File | Express.Multer.File[],
   bucket: string,
   pathPrefix: string,
-  retries = 3
+  retries = 5,
 ): Promise<string | string[]> {
-  const filesArray = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
+  const array = Array.isArray(files) ? files : [files];
 
-  const uploadPromises = filesArray.map(async (file) => {
+  const upload = array.map(async (file) => {
     const path = `${pathPrefix}/${Date.now()}_${file.originalname}`;
     let attempts = 0;
     let lastError: any = null;
 
     while (attempts < retries) {
       try {
+        const fileBlob = new Blob([file.buffer], { type: file.mimetype });
+
         const { error } = await supabaseAdmin.storage
           .from(bucket)
-          .upload(path, file.buffer, {
+          .upload(path, fileBlob, {
             contentType: file.mimetype,
             upsert: true,
           });
@@ -51,10 +55,20 @@ export async function uploadAndGetUrl(
         return data.publicUrl;
       } catch (err: any) {
         lastError = err;
-        if (err.__isStorageError && err.originalError?.code === 'ECONNRESET' && attempts < retries) {
+
+        // Atrapamos ECONNRESET, UND_ERR_SOCKET y 'fetch failed' para reintentar
+        const isNetworkError =
+          err.__isStorageError ||
+          err.originalError?.code === "ECONNRESET" ||
+          err.cause?.code === "UND_ERR_SOCKET" ||
+          err.message?.includes("fetch failed");
+
+        if (isNetworkError && attempts < retries) {
           attempts++;
-          console.warn(`Connection reset for file ${file.originalname}. Retrying upload... (Attempt ${attempts}/${retries})`);
-          await new Promise(res => setTimeout(res, 1000 * attempts));
+          console.warn(
+            `Error de red para ${file.originalname}. Reintentando... (Intento ${attempts}/${retries})`,
+          );
+          await new Promise((res) => setTimeout(res, 1000 * attempts));
         } else {
           throw err;
         }
@@ -63,24 +77,46 @@ export async function uploadAndGetUrl(
     throw lastError;
   });
 
-  const urls = await Promise.all(uploadPromises);
+  const urls = await Promise.all(upload);
 
-  return Array.isArray(fileOrFiles) ? urls : urls[0];
+  return Array.isArray(files) ? urls : urls[0];
 }
 
-// Borrar uno o varios archivos de Supabase Storage dado un array de URLs públicas
-export async function deleteSupabaseFiles(urls: string[], bucket: string) {
-  const paths = urls
-    .map((url) => {
-      const parts = url.split(`${bucket}/`);
-      return parts[1] ? decodeURIComponent(parts[1]) : null;
-    })
-    .filter((path): path is string => !!path);
+// =========================================================
+// BORRAR ARCHIVOS DE SUPABASE STORAGE
+// =========================================================
+export async function deleteFiles(urls: string[]) {
+  const bucketMap: Record<string, string[]> = {};
 
-  if (paths.length > 0) {
-    const { error } = await supabaseAdmin.storage.from(bucket).remove(paths);
-    if (error) {
-      console.error(`Error al borrar archivos del bucket ${bucket}:`, error);
+  urls.forEach((url) => {
+    const parts = url.split("/public/");
+    if (parts[1]) {
+      const decoded = decodeURIComponent(parts[1]);
+
+      const slashIndex = decoded.indexOf("/");
+      if (slashIndex !== -1) {
+        const bucketName = decoded.substring(0, slashIndex);
+        const filePath = decoded.substring(slashIndex + 1);
+
+        if (!bucketMap[bucketName]) {
+          bucketMap[bucketName] = [];
+        }
+        bucketMap[bucketName].push(filePath);
+      }
     }
-  }
+  });
+
+  const promises = Object.keys(bucketMap).map(async (bucketName) => {
+    const paths = bucketMap[bucketName];
+    if (paths.length > 0) {
+      const { error } = await supabaseAdmin.storage.from(bucketName).remove(paths);
+      if (error) {
+        console.error(`Error al borrar archivos del bucket '${bucketName}':`, error);
+      } else {
+        console.log(`${paths.length} archivos borrados del bucket '${bucketName}'`);
+      }
+    }
+  });
+
+  await Promise.all(promises);
 }

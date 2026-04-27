@@ -16,7 +16,7 @@ export { default as Vote } from "./modules/vote/vote.routes";
 
 // --- Módulos de Contenido (Recetas y Posts) ---
 export { default as Recipe } from "./modules/recipe/recipe.routes";
-export { default as Post } from "./modules/post/post.routes";
+export { default as Post } from "./modules/post/routes/post.routes";
 export { default as Chat } from "./modules/chat/routes/chat.routes";
 
 // --- Módulos de Utilidad y Misceláneos ---
