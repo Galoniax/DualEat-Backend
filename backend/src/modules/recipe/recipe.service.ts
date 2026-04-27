@@ -123,16 +123,24 @@ export class RecipeService {
       const currentPage = Math.max(1, page);
       const skip = (currentPage - 1) * size;
 
+      const words = query.split(" ").filter((word) => word.length > 3);
 
       const result = await prisma.recipe.findMany({
         where: {
           OR: [
             { name: { contains: query, mode: "insensitive" } },
             {
+              AND: words.map((word) => ({
+                name: { contains: word, mode: "insensitive" },
+              })),
+            },
+            {
               ingredients: {
                 some: {
                   ingredient: {
-                    name: { contains: query, mode: "insensitive" },
+                    AND: words.map((word) => ({
+                      name: { contains: word, mode: "insensitive" },
+                    })),
                   },
                 },
               },
@@ -176,7 +184,7 @@ export class RecipeService {
         pagination: {
           page: currentPage,
           hasMore,
-        }
+        },
       };
     } catch (e) {
       return null;

@@ -1,21 +1,26 @@
-export interface CreateRecipeDTO {
+import { Unit } from "@prisma/client";
+
+export interface RecipeDTO {
   name: string;
   description: string;
-  main_image: string;
   total_time?: number;
+  main_image: string;
   user_id: string;
 
-  ingredients: {
-    ingredient_id: number;
-    quantity: string;
-    unit_of_measure_id: number;
-    notes?: string;
-  }[];
+  ingredients: RecipeIngredientDTO[];
+  steps: RecipeStepDTO[];
+}
 
-  steps: {
-    step_number: number;
-    description: string;
-    image_url?: string;
-    estimated_time?: number;
-  }[];
+export interface RecipeStepDTO {
+  step_number: number;
+  description: string;
+  estimated_time: number | null;
+  image_url: string;
+}
+
+export interface RecipeIngredientDTO {
+  ingredient_id: number;
+  quantity: string;
+  unit: Unit;
+  notes?: string;
 }
