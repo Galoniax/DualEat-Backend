@@ -9,23 +9,23 @@ import { TagCategoryService } from "../services/tag-category.service";
 const router = Router();
 
 const service = new CommunityTagService();
-const tagCatService = new TagCategoryService();
+const tService = new TagCategoryService();
 
-const controller = new CommunityTagController(service, tagCatService);
+const controller = new CommunityTagController(service, tService);
 
-// 0. Obtener todas las categorias de etiquetas
+// 1. Obtener todas las categorias de etiquetas
 // =========================================================
 router.get("/categories", controller.getAllCategories.bind(controller));
 
-// 1. Obtener todas las etiquetas
+// 2. Obtener todas las etiquetas
 // =========================================================
-router.get("/tags", controller.getAll.bind(controller));
+router.get("/tags", controller.getAllTags.bind(controller));
 
-// 2. Obtener todas las etiquetas por categorias (por id de la categoria)
+// 3. Obtener todas las etiquetas por categorias (por id de la categoria)
 // =========================================================
-router.get("/tags/by-category", controller.getByCategoryId.bind(controller));
+router.get("/tags/category/:category_id", controller.getByCategoryId.bind(controller));
 
-// 3. Crear una nueva etiqueta
+// 4. Crear una nueva etiqueta
 // =========================================================
 router.post(
   "/tag",
@@ -34,7 +34,7 @@ router.post(
   controller.create.bind(controller),
 );
 
-// 4. Actualizar una etiqueta
+// 5. Actualizar una etiqueta
 // =========================================================
 router.put(
   "/tag/update",
@@ -43,7 +43,7 @@ router.put(
   controller.update.bind(controller),
 );
 
-// 5. Eliminar una etiqueta
+// 6. Eliminar una etiqueta
 // =========================================================
 router.delete(
   "/tag/delete",

@@ -6,58 +6,31 @@ import { limiter } from "../../../core/middlewares/rateLimiter";
 
 import multer from "multer";
 import { CommunityService } from "../services/community.service";
+import { CommunityTagService } from "../services/community-tag.service";
 
-const upload = multer();
+const upload = multer({
+  limits: { fileSize: 1024 * 1024 * 10 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Tipo de archivo no permitido"));
+    }
+  },
+});
 
 const router = Router();
 
 const service = new CommunityService();
-const controller = new CommunityController(service);
+const tService = new CommunityTagService();
 
-// 1. Obtener comunidad por slug (slug de la comunidad)
+const controller = new CommunityController(service, tService);
+
+// 1. Obtener todas las comunidades por name
 // =========================================================
-router.get("/", isAuthenticated, controller.get.bind(controller));
+router.get("/name", controller.getByName.bind(controller));
 
-// 2. Obtener todas las comunidades
-// =========================================================
-router.get("/all", controller.getAll.bind(controller));
-
-// 3. Obtener todas las comunidades por tag (id de la etiqueta)
-// =========================================================
-router.get("/communities/tag", controller.getByTag.bind(controller));
-
-// 4. Crear comunidad
-// =========================================================
-router.post(
-  "/create",
-  limiter(false),
-  isAuthenticated,
-  upload.fields([
-    { name: "banner", maxCount: 1 },
-    { name: "icon", maxCount: 1 },
-  ]),
-  controller.create.bind(controller),
-);
-
-// 5. Unirse a comunidad
-// =========================================================
-router.post(
-  "/join",
-  limiter(false),
-  isAuthenticated,
-  controller.join.bind(controller),
-);
-
-// 6. Salir de comunidad
-// =========================================================
-router.post(
-  "/leave",
-  limiter(false),
-  isAuthenticated,
-  controller.leave.bind(controller),
-);
-
-// 7.Obtener las comunidades de un usuario
+// 2. Obtener las comunidades de un usuario
 // =========================================================
 router.get(
   "/user",
@@ -65,12 +38,56 @@ router.get(
   controller.getUserCommunities.bind(controller),
 );
 
-// 8. Obtener posts de una comunidad
+// 3. Obtener todas las comunidades por categoria (id de la categoria)
 // =========================================================
-router.get("/posts", isAuthenticated, controller.getPosts.bind(controller));
+router.get(
+  "/category/:category_id",
+  controller.getByCategorySkeleton.bind(controller),
+);
 
-router.get("/recommended", controller.getRecommended.bind(controller));
-router.get("/popular", controller.getPopular.bind(controller));
-router.get("/trending", controller.getTrending.bind(controller));
+// 4. Obtener todas las comunidades por tag (id de la etiqueta)
+// =========================================================
+router.get("/tag/:tag_id", controller.getByTag.bind(controller));
+
+// 5. Obtener comunidad por id
+// =========================================================
+router.get(
+  "/:community_slug",
+  isAuthenticated,
+  controller.getBySlug.bind(controller),
+);
+
+// 6. Crear comunidad
+// =========================================================
+router.post(
+  "/create",
+  limiter(false),
+  isAuthenticated,
+  upload.none(),
+  controller.create.bind(controller),
+);
+
+// 7. Unirse o salir de comunidad
+// =========================================================
+router.post(
+  "/join-leave",
+  limiter(false),
+  isAuthenticated,
+  upload.none(),
+  controller.joinLeave.bind(controller),
+);
+
+// 8. Subir archivos de una comunidad
+// =========================================================
+router.post(
+  "/upload",
+  limiter(false),
+  isAuthenticated,
+  upload.fields([
+    { name: "banner_url", maxCount: 1 },
+    { name: "image_url", maxCount: 1 },
+  ]),
+  controller.upload.bind(controller),
+);
 
 export default router;

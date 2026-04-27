@@ -1,157 +1,134 @@
 import { Request, Response } from "express";
 import { CommunityService } from "../services/community.service";
 
-import { supabaseAdmin } from "../../../core/config/supabase";
+import { supabaseAdmin, uploadFiles } from "../../../core/config/supabase";
+import { CommunityTagService } from "../services/community-tag.service";
+import { optimize } from "../../../shared/utils/sharp";
+import { CommunityDTO } from "src/shared/interfaces/dto/community.dto";
 
 export class CommunityController {
-  constructor(private communityService: CommunityService) {}
+  constructor(
+    private communityService: CommunityService,
+    private tagService: CommunityTagService,
+  ) {}
 
-  /** CREATE COMMUNITY */
-  create = async (req: Request, res: Response) => {
-    const { name, description, visibility, selectedTags, creatorId } = req.body;
+  // SUBIR IMÁGENES
+  // =========================================================
+  upload = async (req: Request, res: Response) => {
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
-    if (!name || !description || !visibility || !selectedTags || !creatorId) {
+    if (!files || Object.keys(files).length === 0) {
       return res
         .status(400)
-        .json({ error: "Todos los campos son obligatorios." });
+        .json({ success: false, message: "No se recibieron archivos." });
     }
 
-    let tagsArray: number[] = [];
-    let themeColor: string | null = null;
-    let imageUrl: string | null = null;
-
     try {
-      const creator_id = String(creatorId);
+      const uploaded: {
+        banner_url: string;
+        image_url: string;
+      } = {
+        banner_url: "",
+        image_url: "",
+      };
 
-      if (typeof creator_id !== "string" || creator_id.length === 0) {
-        return res
-          .status(400)
-          .json({ error: "El ID del creador no es válido." });
+      if (files["banner_url"] && files["banner_url"].length > 0) {
+        const optimized = await optimize(files["banner_url"]);
+
+        const url = await uploadFiles(optimized[0], "community", "");
+        uploaded.banner_url = url as string;
       }
 
-      // Subir banner si existe
-      if (req.files && (req.files as any).banner) {
-        const bannerFile = (req.files as any).banner[0];
-        const bannerPath = `banner_${Date.now()}_${bannerFile.originalname}`;
+      if (files["image_url"] && files["image_url"].length > 0) {
+        const optimized = await optimize(files["image_url"]);
 
-        const { error } = await supabaseAdmin.storage
-          .from("community")
-          .upload(bannerPath, bannerFile.buffer, {
-            contentType: bannerFile.mimetype,
-            upsert: true,
-          });
-        if (error) throw error;
-
-        const { data: bannerPublic } = supabaseAdmin.storage
-          .from("community")
-          .getPublicUrl(bannerPath);
-
-        if (!bannerPublic.publicUrl) {
-          return res.status(400).json({ error: "Error al subir la imagen." });
-        }
-
-        themeColor = bannerPublic.publicUrl;
+        const url = await uploadFiles(optimized[0], "community", "");
+        uploaded.image_url = url as string;
       }
 
-      // Subir icono si existe
-      if (req.files && (req.files as any).icon) {
-        const iconFile = (req.files as any).icon[0];
-        const iconPath = `icon_${Date.now()}_${iconFile.originalname}`;
-
-        const { error } = await supabaseAdmin.storage
-          .from("community")
-          .upload(iconPath, iconFile.buffer, {
-            contentType: iconFile.mimetype,
-            upsert: true,
-          });
-        if (error) throw error;
-
-        const { data: iconPublic } = supabaseAdmin.storage
-          .from("community")
-          .getPublicUrl(iconPath);
-
-        if (!iconPublic.publicUrl) {
-          return res.status(400).json({ error: "Error al subir la imagen." });
-        }
-
-        imageUrl = iconPublic.publicUrl;
-      }
-
-      tagsArray = JSON.parse(selectedTags);
-
-      // Crear la comunidad en la DB
-      const community = await this.communityService.createCommunity({
-        name,
-        description,
-        image_url:
-          imageUrl ||
-          "https://ohhvldagwoycuifwhgtc.supabase.co/storage/v1/object/public/assets/DefaultCommunity.jpg",
-        visibility,
-        creator_id,
-        selectedTags: tagsArray,
-        //selectedTags: Array.isArray(selectedTags) ? selectedTags : [],
+      return res.status(200).json({
+        success: true,
+        urls: uploaded,
       });
-
-      return res.status(201).json({ success: true, data: community });
-    } catch (error: any) {
-      console.error(error);
-      return res.status(400).json({ success: false, message: error.message });
+    } catch (e: any) {
+      return res.status(400).json({
+        success: false,
+        message: e.message || "No se pudieron subir los archivos",
+      });
     }
   };
 
-  /** JOIN COMMUNITY */
-  join = async (req: Request, res: Response) => {
-    const { community_id } = req.body;
+  // CREAR COMUNIDAD
+  // =========================================================
+  create = async (req: Request, res: Response) => {
+    const { community } = req.body as { community: CommunityDTO };
+
+    const user_id = (req as any).user?.id || req.body.user_id;
+
+    if (
+      !community.name ||
+      !community.description ||
+      !community.tags ||
+      !community.image_url ||
+      !community.banner_url
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Todos los campos son obligatorios.",
+      });
+    }
+
+    try {
+      const result = await this.communityService.create(community, String(user_id));
+
+      return res.status(201).json({ success: true, data: result });
+    } catch (e: any) {
+      return res.status(500).json({
+        success: false,
+        message: e.message || "Error al crear la comunidad",
+      });
+    }
+  };
+
+  // UNIRSE A UNA COMUNIDAD
+  // =========================================================
+  joinLeave = async (req: Request, res: Response) => {
+    const { community_id, join } = req.body as {
+      community_id: string;
+      join: boolean;
+    };
     const user_id = (req as any).user?.id;
 
     try {
-      const member = await this.communityService.joinCommunity(
+      const member = await this.communityService.joinLeave(
         String(user_id),
-        String(community_id)
+        String(community_id),
+        join,
       );
 
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
         data: member,
-        message: "Te uniste a la comunidad",
+        message: join ? "Te uniste a la comunidad" : "Abandonaste la comunidad",
       });
-    } catch (error: any) {
-      res.status(400).json({
+    } catch (e: any) {
+      return res.status(400).json({
         success: false,
-        message: error.message || "No se pudo unir a la comunidad",
+        message: e.message || "No se pudo unir o abandonar la comunidad",
       });
     }
   };
 
-  /** LEAVE COMMUNITY */
-  leave = async (req: Request, res: Response) => {
-    const { community_id } = req.body;
-    const user_id = (req as any).user?.id;
+  // OBTENER COMUNIDAD (by slug)
+  // =========================================================
+  getBySlug = async (req: Request, res: Response) => {
+    const { community_slug } = req.params;
+    const user_id = (req as any).user?.id || req.query.user_id;
 
     try {
-      const result = await this.communityService.leaveCommunity(
+      const community = await this.communityService.getBySlug(
+        String(community_slug),
         String(user_id),
-        String(community_id)
-      );
-      res.status(200).json({
-        success: true,
-        data: result,
-        message: "Abandonaste la comunidad",
-      });
-    } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
-    }
-  };
-
-  /** GET COMMUNITY (by slug) */
-  get = async (req: Request, res: Response) => {
-    const { slug } = req.query;
-    const user_id = (req as any).user?.id;
-
-    try {
-      const community = await this.communityService.getCommunity(
-        slug as string,
-        user_id
       );
 
       if (!community) {
@@ -160,48 +137,46 @@ export class CommunityController {
           .json({ success: false, message: "Comunidad no encontrada" });
       }
 
+      return res.status(200).json({ success: true, data: community });
+    } catch (e: any) {
+      return res.status(400).json({
+        success: false,
+        message: e.message || "Error al obtener la comunidad",
+      });
+    }
+  };
+
+  // OBTENER COMUNIDAD (by name)
+  // =========================================================
+  getByName = async (req: Request, res: Response) => {
+    const { name } = req.query as { name: string };
+
+    if (!name || name.trim() === "") {
+      return res
+        .status(400)
+        .json({ success: false, message: "El parámetro 'name' es requerido" });
+    }
+
+    try {
+      const community = await this.communityService.getByName(name);
+
+      if (!community) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Comunidad no encontrada" });
+      }
+
       res.status(200).json({ success: true, data: community });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+    } catch (e: any) {
+      return res.status(400).json({ success: false, message: e.message });
     }
   };
 
-  /** GET COMMUNITY POSTS */
-  getPosts = async (req: Request, res: Response) => {
-    const { page, communityId } = req.query;
-    const user_id = (req as any).user?.id;
-
-    try {
-      const result = await this.communityService.getCommunityPosts(
-        Number(page),
-        String(communityId),
-        String(user_id)
-      );
-
-      res.status(200).json({ success: true, ...result });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
-    }
-  };
-
-  /** GET ALL COMMUNITIES */
-  getAll = async (req: Request, res: Response) => {
-    const { take } = req.query;
-    try {
-      const communities = await this.communityService.getAllCommunities(
-        Boolean(take)
-      );
-      res.status(200).json({ success: true, data: communities });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
-    }
-  };
-
-  /** GET USER COMMUNITIES */
+  // OBTENER COMUNIDADES DEL USUARIO
+  // =========================================================
   getUserCommunities = async (req: Request, res: Response) => {
-    const user_id = (req as any).user?.id;
+    const user_id = (req as any).user?.id || req.query.user_id;
 
-    // Validate that user_id exists and is a number
     if (!user_id || typeof user_id !== "string") {
       return res.status(400).json({
         success: false,
@@ -210,55 +185,79 @@ export class CommunityController {
     }
 
     try {
-      const communities =
-        await this.communityService.getUserCommunities(user_id);
-      res.status(200).json({ success: true, data: communities });
-    } catch (error: any) {
-      res.status(400).json({
+      const result = await this.communityService.getUserCommunities(user_id);
+
+      if (!result) {
+        return res
+          .status(404)
+          .json({ success: false, message: "No se encontraron comunidades" });
+      }
+      return res.status(200).json({ success: true, data: result });
+    } catch (e: any) {
+      return res.status(400).json({
         success: false,
-        message: error.message || "No se pudo obtener las comunidades",
+        message: e.message || "No se pudo obtener las comunidades",
       });
     }
   };
 
-  // Generar solo una función y devolver todo
-  getRecommended = async (req: Request, res: Response) => {
-    const { user_id } = req.query;
+  // OBTENER COMUNIDAD (by category)
+  // =========================================================
+  getByCategorySkeleton = async (req: Request, res: Response) => {
+    const { category_id } = req.params;
+
+    if (!category_id) {
+      return res.status(400).json({
+        success: false,
+        message: "El ID de la categoría es inválido o no se proporcionó.",
+      });
+    }
+
     try {
-      const communities = await this.communityService.getRecommendedCommunities(
-        String(user_id)
+      const tags = await this.tagService.getByCategoryId(Number(category_id));
+
+      if (!tags || tags.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "No se encontraron tags para la categoría",
+        });
+      }
+
+      const communities = await Promise.all(
+        tags.map(async (tag) => {
+          const communities = await this.communityService.getByTagSkeleton(
+            tag.id,
+          );
+
+          return {
+            id: tag.id,
+            name: tag.name,
+            items: communities || [],
+          };
+        }),
       );
-      res.status(200).json({ success: true, data: communities });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+
+      return res.status(200).json({
+        success: true,
+        data: communities,
+      });
+    } catch (e: any) {
+      return res.status(500).json({
+        success: false,
+        message: e.message || "Error al obtener comunidades por tag",
+      });
     }
   };
 
-  getPopular = async (req: Request, res: Response) => {
-    try {
-      const communities = await this.communityService.getPopularCommunities();
-      res.status(200).json({ success: true, data: communities });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
-    }
-  };
-
-  getTrending = async (req: Request, res: Response) => {
-    try {
-      const communities = await this.communityService.getTrendingCommunities();
-      res.status(200).json({ success: true, data: communities });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
-    }
-  };
-
+  // OBTENER COMUNIDAD (by tag) (PAGINATION)
+  // =========================================================
   getByTag = async (req: Request, res: Response) => {
     const { tagId } = req.query;
 
     console.log(tagId);
     try {
       const communities = await this.communityService.getCommunitiesByTag(
-        Number(tagId)
+        Number(tagId),
       );
       res.status(200).json({ success: true, data: communities });
     } catch (error: any) {

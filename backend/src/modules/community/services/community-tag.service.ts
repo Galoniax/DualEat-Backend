@@ -13,19 +13,27 @@ export class CommunityTagService {
     }
   }
 
-  /** OBTENER ETIQUETA POR CATEGORIA */
-  async getByIdCategory(id: number) {
+  /** OBTENER ETIQUETAS POR ID DE CATEGORIA */
+  async getByCategoryId(category_id: number) {
     try {
       return await prisma.communityTag.findMany({
         where: {
-          category_id: id,
+          category_id,
+          active: true,
         },
-        include: {
-          category: true,
+        select: {
+          id: true,
+          name: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       });
-    } catch (error) {
-      throw new Error(`Failed to get community tags: ${error}`);
+    } catch (e) {
+      return null;
     }
   }
 
