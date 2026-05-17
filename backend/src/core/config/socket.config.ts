@@ -37,6 +37,16 @@ export function initializeSocket(httpServer: HttpServer) {
             console.log('[Socket] Usuario conectado sin ID. Conexión limitada.');
         }
 
+        socket.on('join_ticket', (ticketId: string) => {
+            socket.join(`ticket_${ticketId}`);
+            console.log(`[Socket] Usuario ${userId || 'Anon'} se unió al ticket: ${ticketId}`);
+        });
+
+        socket.on('leave_ticket', (ticketId: string) => {
+            socket.leave(`ticket_${ticketId}`);
+            console.log(`[Socket] Usuario ${userId || 'Anon'} salió del ticket: ${ticketId}`);
+        });
+
         socket.on('disconnect', () => {
             if (userId) {
                 console.log(`[Socket] Usuario desconectado: ${userId}`);

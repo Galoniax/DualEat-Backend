@@ -48,6 +48,20 @@ export class ReviewService {
       review.user.name
     ).catch(e => console.error("Error disparando notificacion:", e));
 
+    // Calcular el nuevo promedio de reseñas para este local
+    const aggregations = await prisma.localReview.aggregate({
+      where: { local_id: localId },
+      _avg: { rating: true },
+    });
+
+    const averageRating = aggregations._avg.rating || rating;
+
+    // Actualizar el local con el nuevo promedio
+    await prisma.local.update({
+      where: { id: localId },
+      data: { average_rating: averageRating },
+    });
+
     return review;
   }
 }

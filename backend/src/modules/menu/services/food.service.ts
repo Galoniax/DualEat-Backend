@@ -39,24 +39,15 @@ export class FoodService {
           promotions: {
             where: { active: true, discount_pct: { gt: 0 }, food_id: null },
           },
-          categories: {
-            where: {
-              foods: {
-                some: {}
-              }
-            },
+          foods: {
+            where: { available: true }, // Asegurar que estén habilitadas
             include: {
-              foods: {
-                
-                where: id ? { local_id: id } : { local: { slug: slug } },
-                include: {
-                  promotions: {
-                    where: { active: true, discount_pct: { gt: 0 } },
-                  },
-                  _count: {
-                    select: { order_items: true },
-                  },
-                },
+              category: true,
+              promotions: {
+                where: { active: true, discount_pct: { gt: 0 } },
+              },
+              _count: {
+                select: { order_items: true },
               },
             },
           },
@@ -69,39 +60,64 @@ export class FoodService {
         (max, p) => Math.max(max, p.discount_pct || 0), 0
       );
 
-      const categoriesWithDiscounts = local.categories.map((category) => {
-        const foodsWithDiscounts = category.foods.map((food) => {
-          const specificPromo = food.promotions; 
+      // Procesar platos y aplicar descuentos
+      const foodsWithDiscounts = local.foods.map((food) => {
+        const specificPromo = food.promotions; 
 
-          let appliedDiscountPct = 0;
-          if (specificPromo && specificPromo.discount_pct) {
-            appliedDiscountPct = specificPromo.discount_pct;
-          } else if (maxGlobalDiscount > 0) {
-            appliedDiscountPct = maxGlobalDiscount;
-          }
+        let appliedDiscountPct = 0;
+        if (specificPromo && specificPromo.discount_pct) {
+          appliedDiscountPct = specificPromo.discount_pct;
+        } else if (maxGlobalDiscount > 0) {
+          appliedDiscountPct = maxGlobalDiscount;
+        }
 
-          let finalPrice = food.price;
-          if (appliedDiscountPct > 0) {
-            finalPrice = food.price - food.price * (appliedDiscountPct / 100);
-          }
+        let finalPrice = food.price;
+        if (appliedDiscountPct > 0) {
+          finalPrice = food.price - food.price * (appliedDiscountPct / 100);
+        }
 
-          const { promotions, _count, ...foodData } = food;
-          return {
-            ...foodData,
-            original_price: food.price,
-            price: finalPrice,
-            discount_pct_applied: appliedDiscountPct > 0 ? appliedDiscountPct : null,
-            ends_at: specificPromo?.ends_at || null,
-            sales_count: _count.order_items || 0,
-          };
-        });
-
-        return { ...category, foods: foodsWithDiscounts };
+        const { promotions, _count, category, ...foodData } = food;
+        return {
+          ...foodData,
+          category, // Guardamos la categoria para agrupar luego
+          original_price: food.price,
+          price: finalPrice,
+          discount_pct_applied: appliedDiscountPct > 0 ? appliedDiscountPct : null,
+          ends_at: specificPromo?.ends_at || null,
+          sales_count: _count.order_items || 0,
+        };
       });
 
+      // Agrupar por categoría
+      const categoriesMap = new Map<number, any>();
+      
+      foodsWithDiscounts.forEach(food => {
+        const cat = food.category;
+        if (!cat) return;
+        
+        if (!categoriesMap.has(cat.id)) {
+          categoriesMap.set(cat.id, {
+            id: cat.id,
+            name: cat.name,
+            tipo: cat.tipo,
+            icon_url: cat.icon_url,
+            foods: []
+          });
+        }
+        
+        // Remove category property from food to match expected frontend structure
+        const { category: _, ...cleanFood } = food;
+        categoriesMap.get(cat.id).foods.push(cleanFood);
+      });
+
+      const processedCategories = Array.from(categoriesMap.values());
+      
+      // Remove foods from local object so it matches the previous structure
+      const { foods, ...localWithoutFoods } = local;
+
       return {
-        ...local,
-        categories: categoriesWithDiscounts,
+        ...localWithoutFoods,
+        categories: processedCategories,
       };
 
     } catch (e) {

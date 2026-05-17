@@ -65,8 +65,8 @@ export class StatisticsService {
     }));
   }
 
-  /** OBTENER GANANCIAS MENSUALES DE UN LOCAL */
-  async getMonthlyLocalEarnings(localId: string, from: string, to: string) {
+  /** OBTENER GANANCIAS AGREGADAS DE UN LOCAL */
+  async getMonthlyLocalEarnings(localId: string, from: string, to: string, groupBy: 'day' | 'month' | 'year' = 'month') {
     const orders = await prisma.order.findMany({
       where: {
         local_id: localId,
@@ -85,21 +85,30 @@ export class StatisticsService {
       },
     });
 
-    const monthlySummary: Record<string, { total_earnings: number; total_orders: number }> = {};
+    const summary: Record<string, { total_earnings: number; total_orders: number }> = {};
 
     orders.forEach((order) => {
-      const monthYear = order.created_at.toISOString().slice(0, 7);
-      
-      if (!monthlySummary[monthYear]) {
-        monthlySummary[monthYear] = { total_earnings: 0, total_orders: 0 };
+      let groupKey = "";
+      const isoString = order.created_at.toISOString();
+
+      if (groupBy === 'day') {
+        groupKey = isoString.slice(0, 10); // YYYY-MM-DD
+      } else if (groupBy === 'year') {
+        groupKey = isoString.slice(0, 4); // YYYY
+      } else {
+        groupKey = isoString.slice(0, 7); // YYYY-MM
       }
       
-      monthlySummary[monthYear].total_earnings += Number(order.total || 0);
-      monthlySummary[monthYear].total_orders += 1;
+      if (!summary[groupKey]) {
+        summary[groupKey] = { total_earnings: 0, total_orders: 0 };
+      }
+      
+      summary[groupKey].total_earnings += Number(order.total || 0);
+      summary[groupKey].total_orders += 1;
     });
 
-    return Object.entries(monthlySummary).map(([month, data]) => ({
-      mes: month,
+    return Object.entries(summary).map(([period, data]) => ({
+      period,
       ganancia: data.total_earnings,
       pedidos: data.total_orders,
     }));

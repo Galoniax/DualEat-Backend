@@ -36,4 +36,13 @@ router.get("/user/orders/:id", order.getOrderById);
 // Obtener info del carrito para validar precios y promociones antes de pagar
 router.post('/cart/validate', cart.getCartInfo);
 
+// Crear orden manual por staff
+router.post('/locals/:id/orders/manual', isAuthenticated, order.createManualOrder);
+
+// Actualizar estado de una orden (staff)
+router.patch('/locals/:id/orders/:orderId/status', isAuthenticated, order.updateOrderStatus);
+
+// Editar items de una orden (staff)
+router.put('/locals/:id/orders/:orderId/items', isAuthenticated, order.updateOrderItems);
+
 export default router;

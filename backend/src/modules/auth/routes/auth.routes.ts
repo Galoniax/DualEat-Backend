@@ -239,6 +239,8 @@ router.get("/me", isAuthenticated, (req, res) => {
   res.json(req.user);
 });
 
+router.put("/me", isAuthenticated, controller.updateProfile.bind(controller));
+
 // 4. RUTAS DE LOGOUT
 // =========================================
 router.post("/logout", controller.logout.bind(controller));

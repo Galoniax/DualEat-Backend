@@ -175,7 +175,7 @@ export class LocalController {
   getMonthlyEarnings = async (req: Request, res: Response) => {
     try {
       const localId = req.params.id;
-      const { from, to } = req.query;
+      const { from, to, groupBy } = req.query;
 
       // Se requieren las fechas de inicio y fin para este cálculo
       if (!from || !to || typeof localId !== "string" || !localId) {
@@ -191,6 +191,7 @@ export class LocalController {
           localId,
           from as string,
           to as string,
+          (groupBy as 'day' | 'month' | 'year') || 'month'
         );
 
       return res.json(monthlyEarnings);

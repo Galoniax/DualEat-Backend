@@ -265,7 +265,7 @@ export class AuthController {
       return res.status(200).json({
         success: true,
         message: "Credenciales válidas. Continuando a preferencias.",
-        next_step: `/onboarding?tempToken=${tempToken}`,
+        next_step: `/?tempToken=${tempToken}`,
       });
     } catch (error) {
       console.error("Register Error:", error);
@@ -532,6 +532,66 @@ export class AuthController {
       return res.status(200).json({
         success: true,
         message: "Sesión cerrada",
+      });
+    }
+  }
+
+  // =========================================================
+  // ACTUALIZAR PERFIL (STAFF / USER)
+  // =========================================================
+  async updateProfile(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: "No autorizado" });
+      }
+
+      const { name, currentPassword, newPassword } = req.body;
+      const updateData: any = {};
+
+      if (name) {
+        updateData.name = name;
+      }
+
+      // Si quiere cambiar contraseña, verificamos la actual
+      if (newPassword) {
+        if (!currentPassword) {
+          return res.status(400).json({ success: false, message: "Debes ingresar tu contraseña actual para establecer una nueva" });
+        }
+
+        const user = await this.userService.getById(userId);
+        if (!user || !user.password_hash) {
+          return res.status(400).json({ success: false, message: "No se puede actualizar la contraseña de esta cuenta" });
+        }
+
+        const passwordMatch = await comparePassword(currentPassword, user.password_hash);
+        if (!passwordMatch) {
+          return res.status(400).json({ success: false, message: "La contraseña actual es incorrecta" });
+        }
+
+        updateData.password_hash = await hashPassword(newPassword);
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ success: false, message: "No hay datos para actualizar" });
+      }
+
+      const updatedUser = await this.userService.update(userId, updateData);
+
+      // Limpiar data sensible antes de devolver
+      const { password_hash, reset_code, ...safeUser } = updatedUser;
+
+      return res.status(200).json({
+        success: true,
+        message: "Perfil actualizado correctamente",
+        data: safeUser
+      });
+
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: "Error al actualizar el perfil",
+        error: error.message,
       });
     }
   }

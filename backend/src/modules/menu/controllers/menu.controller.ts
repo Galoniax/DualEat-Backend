@@ -83,6 +83,7 @@ export class MenuController {
 
       const {
         category_id,
+        local_menu_category_id,
         name,
         description,
         price,
@@ -95,7 +96,7 @@ export class MenuController {
       }
 
       // Prisma solo acepta category_id. Si el frontend manda local_menu_category_id, lo usamos como category_id
-      const finalCategoryId = Number(category_id || 1);
+      const finalCategoryId = Number(local_menu_category_id || category_id || 1);
 
       const food = await this.manualService.createFood(localId, {
         category_id: finalCategoryId,

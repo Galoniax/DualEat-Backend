@@ -143,6 +143,25 @@ enum SubscriptionPlan {
   COMMUNITY_USER_ANNUAL
 }
 
+enum TicketType {
+  PAYMENT
+  WEB
+  QUERY
+  OTHER
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum SupportSenderRole {
+  LOCAL
+  ADMIN
+}
+
 // ========================================================
 // MODELO DE USUARIOS Y NOTIFICACIONES
 // ========================================================
@@ -187,6 +206,7 @@ model User {
   subscriptions       Subscription[]
   preferences         UserPreference[]
   recipes             Recipe[]
+  support_messages    SupportMessage[]
 
   received_replies PostComment[] @relation("RepliedUser")
 
@@ -260,6 +280,7 @@ model Local {
   calendar_events LocalCalendarEvent[]
   notes           LocalNote[]
   Subscription    Subscription[]
+  support_tickets SupportTicket[]
 
   categories FoodCategory[] @relation("LocalCategories")
 
@@ -691,4 +712,41 @@ model Subscription {
 
   @@unique([user_id, local_id, subscription_type])
   @@index([mp_preapproval_id])
+}
+
+// ========================================================
+// MODELO DE SOPORTE Y CHAT
+// ========================================================
+
+model SupportTicket {
+  id         String       @id @default(nanoid(10)) @map("id")
+  local_id   String
+  type       TicketType
+  status     TicketStatus @default(OPEN)
+  
+  created_at DateTime     @default(now())
+  updated_at DateTime     @updatedAt
+
+  local      Local            @relation(fields: [local_id], references: [id])
+  messages   SupportMessage[]
+
+  @@index([local_id])
+  @@index([status])
+}
+
+model SupportMessage {
+  id          String            @id @default(cuid()) @map("id")
+  ticket_id   String
+  sender_id   String
+  sender_role SupportSenderRole
+  content     String
+  read        Boolean           @default(false)
+  
+  created_at  DateTime          @default(now())
+
+  ticket      SupportTicket     @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  sender      User              @relation(fields: [sender_id], references: [id])
+
+  @@index([ticket_id])
+  @@index([sender_id])
 }

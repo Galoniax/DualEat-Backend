@@ -24,6 +24,7 @@ import {
   Admin,
   Users,
   Subscription,
+  Support,
 } from "./index";
 
 // Configuración y utilidades
@@ -136,6 +137,7 @@ app.use(`${API_PREFIX}/food-categories`, FoodCategory);
 app.use(`${API_PREFIX}/local`, Local);
 app.use(`${API_PREFIX}/order`, Order);
 app.use(`${API_PREFIX}/subscription`, Subscription);
+app.use(`${API_PREFIX}/support`, Support);
 
 // Middleware de manejo de errores
 app.use(

@@ -25,3 +25,4 @@ export { default as Admin } from "./routes/admin.routes";
 export { default as Users } from "./routes/users";
 
 export { default as Subscription } from "./modules/subscription/subscriptions.routes";
+export { default as Support } from "./modules/support/routes/support.routes";
