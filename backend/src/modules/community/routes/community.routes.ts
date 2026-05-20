@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { CommunityController } from "../controllers/community.controller";
 
-import { isAuthenticated } from "../../../core/middlewares/isAuthenticated";
-import { limiter } from "../../../core/middlewares/rateLimiter";
+import { isAuthenticated } from "@/core/middlewares/isAuthenticated";
+import { limiter } from "@/core/middlewares/rateLimiter";
 
 import multer from "multer";
 import { CommunityService } from "../services/community.service";

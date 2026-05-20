@@ -1,8 +1,8 @@
 import { UserService } from "../services/user.service";
 import { Request, Response } from "express";
-import { SECRET_KEY } from "../../../core/config/config";
+import { SECRET_KEY } from "@/core/config/config";
 
-import { prisma } from "../../../core/database/prisma/prisma";
+import { prisma } from "@/core/database/prisma/prisma";
 
 import jwt from "jsonwebtoken";
 import axios from "axios";
@@ -13,24 +13,23 @@ import {
   UserSessionData,
   TempTokenPayload,
   SecureTokenPayload,
-} from "../../../shared/interfaces/dto/user.dto";
+} from "@/shared/interfaces/dto/user.dto";
 
-import { comparePassword, hashPassword } from "../../../shared/utils/hash";
+import { comparePassword, hashPassword } from "@/shared/utils/hash";
 
 import {
   createSecureToken,
   createTempToken,
   verifyTempToken,
-} from "../../../shared/utils/jwt";
+} from "@/shared/utils/jwt";
 import AuthSessionService from "../services/auth-session.service";
-import { generateUniqueSlug } from "../../../shared/utils/sluglify";
+import { generateUniqueSlug } from "@/shared/utils/sluglify";
 
 export class AuthController {
   private readonly authSessionService = AuthSessionService.getInstance();
 
   constructor(private userService: UserService) {}
 
-  // =========================================================
   // INICIO DE SESIÓN
   // =========================================================
   async login(req: Request, res: Response) {
@@ -56,7 +55,6 @@ export class AuthController {
         });
       }
 
-      // ============================================================
       // 2. VERIFICACIÓN DE SEGURIDAD (RECAPTCHA)
       // ============================================================
       if (!recaptcha) {
@@ -83,7 +81,6 @@ export class AuthController {
         });
       }
 
-      // ============================================================
       // 3. VERIFICACIÓN DE CREDENCIALES (DB)
       // ============================================================
       const user = await this.userService.getByEmail(email);
@@ -144,7 +141,6 @@ export class AuthController {
         }
       }
 
-      // ============================================================
       // 4. PREPARACIÓN DE DATOS DE SESIÓN
       // ============================================================
       const userData: UserSessionData = {
@@ -167,7 +163,6 @@ export class AuthController {
         deviceId: deviceId,
       };
 
-      // ============================================================
       // 5. GENERACIÓN DE TOKEN Y COOKIE
       // ============================================================
 
@@ -194,7 +189,6 @@ export class AuthController {
         `Login exitoso. User: ${email}, Device: ${deviceId}, Remember: ${remember}`,
       );
 
-      // ============================================================
       // 6. RESPUESTA FINAL
       // ============================================================
       return res
@@ -214,7 +208,7 @@ export class AuthController {
       });
     }
   }
-  // =========================================================
+
   // REGISTRO INICIAL
   // =========================================================
   async register(req: Request, res: Response) {
@@ -244,7 +238,6 @@ export class AuthController {
         });
       }
 
-      // ============================================================
       // 3. PROCESAMIENTO Y TOKEN TEMPORAL
       // ============================================================
 
@@ -276,7 +269,6 @@ export class AuthController {
     }
   }
 
-  // =========================================================
   // COMPLETAR PERFIL Y CREAR USUARIO
   // =========================================================
   async completeProfile(req: Request, res: Response) {
@@ -398,7 +390,6 @@ export class AuthController {
     }
   }
 
-  // =========================================================
   // COMPLETAR PERFIL (LOCAL + USUARIO ADMIN)
   // =========================================================
   async completeLocalProfile(req: Request, res: Response) {
@@ -484,7 +475,6 @@ export class AuthController {
     }
   }
 
-  // =========================================================
   // LOGOUT
   // =========================================================
   async logout(req: Request, res: Response) {

@@ -1,10 +1,10 @@
 import { Router } from "express";
 
-import { ChatController } from "../controllers/chat.controller";
-import { RecipeService } from "../../recipe/recipe.service";
+import { ChatController } from "@/modules/chat/controllers/chat.controller";
+import { RecipeService } from "@/modules/recipe/recipe.service";
 
-import { isAuthenticated } from "../../../core/middlewares/isAuthenticated";
-import { limiter } from "../../../core/middlewares/rateLimiter";
+import { isAuthenticated } from "@/core/middlewares/isAuthenticated";
+import { limiter } from "@/core/middlewares/rateLimiter";
 
 const router = Router();
 
@@ -34,10 +34,10 @@ router.put("/:chat_id/title", isAuthenticated, controller.editTitle.bind(control
 
 // 5. Eliminar chat
 // =========================================================
-router.delete("/:chat_id", isAuthenticated, controller.deleteChat.bind(controller));
+router.delete("/:chat_id", isAuthenticated, controller.delete.bind(controller));
 
 // 6. Eliminar todos los chats
 // =========================================================
-router.delete("/", isAuthenticated, controller.deleteAllChats.bind(controller));
+router.delete("/", isAuthenticated, controller.deleteAll.bind(controller));
 
 export default router;

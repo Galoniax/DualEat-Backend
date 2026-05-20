@@ -1,10 +1,10 @@
-import { prisma } from "../../../core/database/prisma/prisma";
+import { prisma } from "@/core/database/prisma/prisma";
 
-import { PostDTO } from "../../../shared/interfaces/dto/post.dto";
-import { RecipeDTO } from "../../../shared/interfaces/dto/recipe.dto";
+import { PostDTO } from "@/shared/interfaces/dto/post.dto";
+import { RecipeDTO } from "@/shared/interfaces/dto/recipe.dto";
 
-import { generateSlug } from "../../../shared/utils/sluglify";
-import { getSocketServer } from "../../../core/config/socket.config";
+import { generateSlug } from "@/shared/utils/sluglify";
+import { getSocketServer } from "@/core/config/socket.config";
 import { Post, Recipe, Community, ContentType, Vote, VoteType } from "@prisma/client";
 
 export class PostService {
@@ -135,6 +135,14 @@ export class PostService {
             select: {
               name: true,
               image_url: true,
+              slug: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              avatar_url: true,
               slug: true,
             },
           },

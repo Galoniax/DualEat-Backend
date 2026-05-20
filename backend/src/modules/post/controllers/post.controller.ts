@@ -1,13 +1,13 @@
 import { Request, Response } from "express";
 import { PostService } from "../services/post.service";
 
-import { uploadFiles, deleteFiles } from "../../../core/config/supabase";
+import { uploadFiles, deleteFiles } from "@/core/config/supabase";
 
-import { RecipeDTO } from "../../../shared/interfaces/dto/recipe.dto";
-import { PostDTO } from "../../../shared/interfaces/dto/post.dto";
+import { RecipeDTO } from "@/shared/interfaces/dto/recipe.dto";
+import { PostDTO } from "@/shared/interfaces/dto/post.dto";
 
 import sanitizeHtml from "sanitize-html";
-import { optimize } from "../../../shared/utils/sharp";
+import { optimize } from "@/shared/utils/sharp";
 
 export class PostController {
   constructor(private postService: PostService) {}

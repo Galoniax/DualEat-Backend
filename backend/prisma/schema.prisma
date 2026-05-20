@@ -20,14 +20,6 @@ generator client {
   binaryTargets = ["native", "windows", "debian-openssl-3.0.x"]
 }
 
-generator erd {
-  provider    = "prisma-erd-generator"
-  theme       = "dark"
-  output      = "../../design/DER.pdf"
-  ignoreEnums = true
-  disabled    = true
-}
-
 // Enums
 enum Role {
   USER
@@ -221,17 +213,17 @@ model UserPreference {
   food_category_id Int?
   community_tag_id Int?
 
-  foodCategory FoodCategory? @relation(fields: [food_category_id], references: [id])
-  communityTag CommunityTag? @relation(fields: [community_tag_id], references: [id])
+  foodCategory FoodCategory? @relation(fields: [food_category_id], references: [id], onDelete: Cascade)
+  communityTag CommunityTag? @relation(fields: [community_tag_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, food_category_id])
   @@unique([user_id, community_tag_id])
 }
 
 model Notification {
-  id           String                   @id @default(cuid()) @map("id")
+  id           String                  @id @default(cuid()) @map("id")
   user_id      String
-  content_type NotificationContentType?
+  content_type NotificationContentType
   content_id   String?
 
   metadata Json?
@@ -241,7 +233,7 @@ model Notification {
   deleted    Boolean  @default(false)
   created_at DateTime @default(now())
 
-  user User @relation(fields: [user_id], references: [id])
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([created_at, user_id])
 }
@@ -362,8 +354,8 @@ model LocalReview {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  order    Order?  @relation(fields: [order_id], references: [id])
-  order_id String? @unique
+  order    Order  @relation(fields: [order_id], references: [id])
+  order_id String @unique
 
   // @@unique([user_id, local_id]) Una por pedido, no por usuario-local para permitir múltiples reseñas si hay múltiples pedidos
 }
@@ -402,7 +394,7 @@ model Food {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  local    Local        @relation(fields: [local_id], references: [id])
+  local    Local        @relation(fields: [local_id], references: [id], onDelete: Cascade)
   category FoodCategory @relation(fields: [category_id], references: [id])
 
   order_items OrderItem[]
@@ -429,8 +421,8 @@ model Promotion {
 
   active Boolean @default(true)
 
-  local Local @relation(fields: [local_id], references: [id])
-  food  Food? @relation(fields: [food_id], references: [id])
+  local Local @relation(fields: [local_id], references: [id], onDelete: Cascade)
+  food  Food? @relation(fields: [food_id], references: [id], onDelete: Cascade)
 
   created_at DateTime @default(now())
 
@@ -459,7 +451,7 @@ model Promotion {
 // MODELO DE VOTOS
 // ========================================================
 model Vote {
-  user         User        @relation("UserVotes", fields: [user_id], references: [id])
+  user         User        @relation("UserVotes", fields: [user_id], references: [id], onDelete: Cascade)
   user_id      String
   content_type ContentType
   content_id   String
@@ -481,7 +473,7 @@ model Community {
   image_url   String?
   banner_url  String?
 
-  total_members Int      @default(0)
+  total_members Int      @default(1)
   creator       User     @relation("Creator", fields: [creator_id], references: [id])
   creator_id    String
   created_at    DateTime @default(now())
@@ -520,7 +512,7 @@ model CommunityTag {
 
 model CommunityMember {
   id                     String                @id @default(cuid()) @map("id")
-  user                   User                  @relation(fields: [user_id], references: [id])
+  user                   User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
   user_id                String
   community              Community             @relation(fields: [community_id], references: [id], onDelete: Cascade)
   community_id           String
@@ -539,7 +531,7 @@ model CommunityMember {
 model Recipe {
   id          String @id @default(nanoid(10)) @map("id")
   slug        String @unique
-  user        User   @relation(fields: [user_id], references: [id])
+  user        User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
   user_id     String
   name        String
   description String
@@ -586,9 +578,9 @@ model RecipeStep {
 model Post {
   id           String    @id @default(nanoid(10)) @map("id")
   slug         String    @unique
-  user         User      @relation(fields: [user_id], references: [id])
+  user         User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
   user_id      String
-  community    Community @relation(fields: [community_id], references: [id])
+  community    Community @relation(fields: [community_id], references: [id], onDelete: Cascade)
   community_id String
   title        String
   content      String
@@ -608,20 +600,22 @@ model Post {
 }
 
 model PostComment {
-  id                String       @id @default(cuid()) @map("id")
-  user              User         @relation(fields: [user_id], references: [id])
-  user_id           String
-  post              Post         @relation(fields: [post_id], references: [id], onDelete: Cascade)
-  post_id           String
+  id      String @id @default(cuid()) @map("id")
+  user    User   @relation(fields: [user_id], references: [id])
+  user_id String
+  post    Post   @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  post_id String
+
   parent_comment    PostComment? @relation("CommentReplies", fields: [parent_comment_id], references: [id], onDelete: Cascade)
   parent_comment_id String?
 
   reply_to_user_id String?
-  reply_to_user    User?   @relation("RepliedUser", fields: [reply_to_user_id], references: [id])
+  reply_to_user    User?   @relation("RepliedUser", fields: [reply_to_user_id], references: [id], onDelete: SetNull)
 
   content    String
   votes_up   Int      @default(0)
   votes_down Int      @default(0)
+  edited     Boolean  @default(false)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
   active     Boolean  @default(true)
@@ -649,9 +643,9 @@ model Ingredient {
 // ========================================================
 model Order {
   id             String      @id @default(nanoid(10)) @map("id")
-  user           User?       @relation(fields: [user_id], references: [id])
+  user           User?       @relation(fields: [user_id], references: [id], onDelete: SetNull)
   user_id        String?
-  local          Local       @relation(fields: [local_id], references: [id])
+  local          Local       @relation(fields: [local_id], references: [id], onDelete: Cascade)
   local_id       String
   total          Float
   status         OrderStatus @default(PENDING)
@@ -671,7 +665,7 @@ model Order {
 
 model OrderItem {
   id         String @id @default(cuid()) @map("id")
-  order      Order  @relation(fields: [order_id], references: [id])
+  order      Order  @relation(fields: [order_id], references: [id], onDelete: Cascade)
   order_id   String
   food       Food   @relation(fields: [food_id], references: [id])
   food_id    String

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { VoteController } from "./vote.controller";
-import { isAuthenticated } from "../../core/middlewares/isAuthenticated";
+import { isAuthenticated } from "@/core/middlewares/isAuthenticated";
 import { VoteService } from "./vote.service";
 
 const router = Router();

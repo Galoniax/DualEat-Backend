@@ -1,4 +1,4 @@
-import { prisma } from "../../../core/database/prisma/prisma";
+import { prisma } from "@/core/database/prisma/prisma";
 import { Local, LocalSchedule, DayOfWeek } from "@prisma/client";
 
 type ScheduleInput = {
@@ -96,10 +96,10 @@ export class SettingsService {
   }
 
   /** GET LOCAL SCHEDULES */
-  async getLocalSchedules(slug: string) {
+  async getLocalSchedules(local_id: string) {
     try {
       const local = await prisma.local.findUnique({
-        where: { slug },
+        where: { id: local_id },
         include: {
           schedules: {
             select: { day_of_week: true, open_time: true, close_time: true },

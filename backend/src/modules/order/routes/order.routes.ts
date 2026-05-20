@@ -5,7 +5,7 @@ import { CartService } from "../services/cart.service";
 import { FoodService } from "../../menu/services/food.service";
 import { SettingsService } from "../../local/service/settings.service";
 import { OrderService } from "../services/order.service";
-import { isAuthenticated } from "../../../core/middlewares/isAuthenticated";
+import { isAuthenticated } from "@/core/middlewares/isAuthenticated";
 
 const router = Router();
 
@@ -31,7 +31,7 @@ router.get("/locals/:id/orders", order.getOrders);
 router.get("/user/orders", isAuthenticated, order.getUserOrders);
 
 // Obtener orden por ID
-router.get("/user/orders/:id", order.getOrderById);
+router.get("/user/orders/:id", order.getById);
 
 // Obtener info del carrito para validar precios y promociones antes de pagar
 router.post('/cart/validate', cart.getCartInfo);

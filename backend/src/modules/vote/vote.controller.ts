@@ -5,7 +5,6 @@ import { ContentType, VoteType } from "@prisma/client";
 export class VoteController {
   constructor(private voteService: VoteService) {}
 
-  // =========================================================
   // CREAR VOTO
   // =========================================================
   create = async (req: Request, res: Response) => {

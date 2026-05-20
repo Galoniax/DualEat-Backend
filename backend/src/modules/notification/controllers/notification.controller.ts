@@ -4,47 +4,55 @@ import { NotificationService } from "../services/notification.service";
 export class NotificationController {
   constructor(private notificationService: NotificationService) {}
 
-  /** GET /api/notification */
-  async getUserNotifications(req: Request, res: Response) {
+  // OBTENER NOTIFICACIONES DE UN USUARIO
+  // =========================================================
+  async getAll(req: Request, res: Response) {
+    const user_id = (req as any).user?.id || req.query.user_id;
+
     try {
-      const readed = req.query.readed;
-     
-      const user_id = (req as any).user?.id;
+      const result = await this.notificationService.getAll(user_id);
 
-      if (!user_id) {
-        return res
-          .status(401)
-          .json({ success: false, message: "No autorizado" });
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          message: "No se encontraron notificaciones",
+        });
       }
-      
 
-      const notifications =
-        await this.notificationService.getUserNotifications(user_id, String(readed));
-      res.status(200).json({ success: true, data: notifications });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      return res.status(200).json({ success: true, data: result });
+    } catch (e: any) {
+      return res.status(500).json({
+        success: false,
+        message: e.message || "Error al obtener las notificaciones",
+      });
     }
   }
 
-  /** PUT /api/notification/status */
-  async changeNotificationStatus(req: Request, res: Response) {
+  // CAMBIAR ESTADO DE UNA NOTIFICACIÓN
+  // =========================================================
+  async changeStatus(req: Request, res: Response) {
     try {
       const { community_id, type, value } = req.body;
       const user_id = (req as any).user?.id;
-      const notification =
-        await this.notificationService.changeNotificationStatus(
-          community_id,
-          user_id,
-          type,
-          value
-        );
-      res.status(200).json({ success: true, data: notification });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      const notification = await this.notificationService.changeStatus(
+        community_id,
+        user_id,
+        type,
+        value,
+      );
+      return res.status(200).json({ success: true, data: notification });
+    } catch (e: any) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: e.message || "Error al cambiar el estado de la notificación",
+        });
     }
   }
 
-  /** GET /api/notification/unread-count */
+  // OBTENER CANTIDAD DE NOTIFICACIONES NO LEÍDAS
+  // =========================================================
   async getUnreadCount(req: Request, res: Response) {
     try {
       const user_id = (req as any).user?.id;
@@ -56,13 +64,21 @@ export class NotificationController {
       }
 
       const count = await this.notificationService.getUnreadCount(user_id);
-      res.status(200).json({ success: true, data: count });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      return res.status(200).json({ success: true, data: count });
+    } catch (e: any) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            e.message ||
+            "Error al obtener la cantidad de notificaciones no leídas",
+        });
     }
   }
 
-  /** PUT /api/notification/mark-all-as-read */
+  // MARCAR TODAS LAS NOTIFICACIONES COMO LEÍDAS
+  // =========================================================
   async markAllAsRead(req: Request, res: Response) {
     try {
       const user_id = (req as any).user?.id;
@@ -74,16 +90,23 @@ export class NotificationController {
       }
 
       await this.notificationService.markAllasRead(user_id);
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
         message: "Notificaciones marcadas como leídas",
       });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+    } catch (e: any) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            e.message || "Error al marcar las notificaciones como leídas",
+        });
     }
   }
 
-  /** PUT /api/notification/read */
+  // MARCAR UNA NOTIFICACIÓN COMO LEÍDA
+  // =========================================================
   async markAsRead(req: Request, res: Response) {
     try {
       const { id } = req.body;
@@ -96,16 +119,22 @@ export class NotificationController {
       }
 
       await this.notificationService.markAsRead(String(id), user_id);
-      res
+      return res
         .status(200)
         .json({ success: true, message: "Notificación marcada como leída" });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+    } catch (e: any) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: e.message || "Error al marcar la notificación",
+        });
     }
   }
 
-  /** DELETE /api/notification */
-  async deleteAllNotifications(req: Request, res: Response) {
+  // ELIMINAR TODAS LAS NOTIFICACIONES
+  // =========================================================
+  async deleteAll(req: Request, res: Response) {
     try {
       const user_id = (req as any).user?.id;
 
@@ -113,27 +142,32 @@ export class NotificationController {
         return res.status(401).json({ error: "No autorizado" });
       }
 
-      await this.notificationService.deleteAllNotifications(user_id);
-      return res.status(200).json({ success: true });
-    } catch (error: any) {
-      return res.status(500).json({ error: error.message });
+      await this.notificationService.deleteAll(user_id);
+      return res.status(204).send();
+    } catch (e: any) {
+      return res
+        .status(500)
+        .json({ message: e.message || "Error al eliminar las notificaciones" });
     }
   }
 
-  /** DELETE /api/notification/delete */
-  async deleteNotification(req: Request, res: Response) {
+  // ELIMINAR UNA NOTIFICACIÓN
+  // =========================================================
+  async delete(req: Request, res: Response) {
     try {
-      const { id } = req.query;
+      const { id } = req.params as { id: string };
       const user_id = (req as any).user?.id;
 
       if (!user_id) {
         return res.status(401).json({ error: "No autorizado" });
       }
 
-      await this.notificationService.deleteNotification(String(id), user_id);
-      return res.status(200).json({ success: true });
-    } catch (error: any) {
-      return res.status(500).json({ error: error.message });
+      await this.notificationService.delete(String(id), user_id);
+      return res.status(204).send();
+    } catch (e: any) {
+      return res
+        .status(500)
+        .json({ message: e.message || "Error al eliminar la notificación" });
     }
   }
 }

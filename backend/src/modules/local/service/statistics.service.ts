@@ -1,5 +1,5 @@
-import { prisma } from "../../../core/database/prisma/prisma";
-import { OrderStatus } from "@prisma/client"; // <-- Importamos el Enum de Prisma
+import { prisma } from "@/core/database/prisma/prisma";
+import { OrderStatus } from "@prisma/client";
 
 export class StatisticsService {
   

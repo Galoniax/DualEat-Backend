@@ -1,5 +1,5 @@
 import { DayOfWeek } from "@prisma/client";
-import { prisma } from "../../../core/database/prisma/prisma";
+import { prisma } from "@/core/database/prisma/prisma";
 import { FoodService } from "../../menu/services/food.service";
 
 interface preferencesDTO {
@@ -13,16 +13,15 @@ export class DiscoveryService {
   constructor(private readonly foodService: FoodService) {}
 
   private days: DayOfWeek[] = [
+    "DOMINGO",
     "LUNES",
     "MARTES",
     "MIERCOLES",
     "JUEVES",
     "VIERNES",
     "SABADO",
-    "DOMINGO",
   ];
 
-  // =========================================================
   // OBTENER LOCAL POR MAPA O PREFERENCIAS
   // =========================================================
   async getLocalsInBounds(
@@ -147,6 +146,25 @@ export class DiscoveryService {
     return locals;
   }
 
+
+  private formatFoodItem(food: any) {
+  // Extraemos la promoción si existe y está activa
+  const promo = food.promotions;
+  const appliedDiscountPct = promo?.active && promo?.discount_pct > 0 ? promo.discount_pct : 0;
+  
+  // Calculamos el precio final
+  const finalPrice = food.price - (food.price * (appliedDiscountPct / 100));
+
+  return {
+    ...food,
+    original_price: food.price,
+    price: finalPrice,
+    discount_pct_applied: appliedDiscountPct > 0 ? appliedDiscountPct : null,
+    ends_at: promo?.ends_at || null,
+    sales_count: food._count?.order_items || 0,
+  };
+};
+
   async getHomeFeed(lat: number, lng: number, user_id: string) {
     const offset = 40000 / 111000;
     const latMin = lat - offset;
@@ -156,12 +174,14 @@ export class DiscoveryService {
 
     const now = new Date();
     const current = this.days[now.getDay()];
+
     const time =
       now.getHours().toString().padStart(2, "0") +
       ":" +
       now.getMinutes().toString().padStart(2, "0");
 
     const baseLocalFilter = {
+      active: true,
       latitude: { gte: latMin, lte: latMax },
       longitude: { gte: lngMin, lte: lngMax },
       schedules: {
@@ -173,20 +193,16 @@ export class DiscoveryService {
       },
     };
 
-    const userPreferenceFilter = {
-      categories: {
-        some: {
-          user_preferences: { some: { user_id } },
-        },
-      },
-    };
-
     // 2. Ejecutamos las consultas con un código mucho más limpio
     const [parati, ofertasHot, promociones, masPedidos, mejoresRestaurantes] =
       await Promise.all([
         // Para ti:
         prisma.food.findMany({
-          where: { local: { ...baseLocalFilter, ...userPreferenceFilter } },
+          where: {
+            local: { ...baseLocalFilter },
+            category: { user_preferences: { some: { user_id } } },
+            available: true,
+          },
           include: {
             local: {
               select: {
@@ -197,6 +213,9 @@ export class DiscoveryService {
                 longitude: true,
                 slug: true,
               },
+            },
+            _count: {
+              select: { order_items: true },
             },
             promotions: true,
           },
@@ -224,6 +243,10 @@ export class DiscoveryService {
                 latitude: true,
                 longitude: true,
               },
+
+            },
+            _count: {
+              select: { order_items: true },
             },
             promotions: {
               where: {
@@ -256,6 +279,9 @@ export class DiscoveryService {
                 slug: true,
               },
             },
+            _count: {
+              select: { order_items: true },
+            },
             promotions: {
               where: {
                 active: true,
@@ -268,7 +294,7 @@ export class DiscoveryService {
 
         // Más Pedidos
         prisma.food.findMany({
-          where: { local: { ...baseLocalFilter } },
+          where: { local: { ...baseLocalFilter }, available: true },
           include: {
             local: {
               select: {
@@ -279,6 +305,9 @@ export class DiscoveryService {
                 latitude: true,
                 longitude: true,
               },
+            },
+            _count: {
+              select: { order_items: true },
             },
             promotions: true,
           },
@@ -303,17 +332,15 @@ export class DiscoveryService {
 
     const response: any = {};
 
-    if (parati.length > 0) response.parati = parati;
-    if (ofertasHot.length > 0) response.ofertas_hot = ofertasHot;
-    if (promociones.length > 0) response.promociones = promociones;
-    if (masPedidos.length > 0) response.mas_pedidos = masPedidos;
+    if (parati.length > 0) response.para_ti = parati.map(this.formatFoodItem);
+    if (ofertasHot.length > 0) response.ofertas_hot = ofertasHot.map(this.formatFoodItem);
+    if (promociones.length > 0) response.promociones = promociones.map(this.formatFoodItem);
+    if (masPedidos.length > 0) response.mas_pedidos = masPedidos.map(this.formatFoodItem);
     if (mejoresRestaurantes.length > 0)
       response.restaurantes_destacados = mejoresRestaurantes;
 
     return response;
   }
-
-  // =========================================================
   // OBTENER LOCALES POR CERCANÍA
   // =========================================================
   async getLocalsByNearby(lat: number, lng: number, radius: number) {
@@ -372,22 +399,20 @@ export class DiscoveryService {
     }
   }
 
-  // =========================================================
   // OBTENER LOCAL
   // =========================================================
-  async getLocal(slug: string) {
+  async getById(local_id: string) {
     try {
-      const local = await this.foodService.getLocalWithMenu({ slug });
+      const local = await this.foodService.getLocalWithMenu({ id: local_id });
       return local;
     } catch (e) {
       return null;
     }
   }
 
-  // =========================================================
   // OBTENER REVIEWS DE UN LOCAL
   // =========================================================
-  async getReviews(page: number, slug: string) {
+  async getReviews(local_id: string, page: number) {
     try {
       const size = 10;
       const currentPage = Math.max(1, page);
@@ -396,23 +421,38 @@ export class DiscoveryService {
 
       const [reviews, total] = await Promise.all([
         prisma.localReview.findMany({
-          where: { local: { slug } },
+          where: { local_id: local_id },
           include: {
             user: {
               select: { name: true, avatar_url: true, slug: true },
             },
-            local: {
-              select: { average_rating: true },
+            order: {
+              select: {
+                order_items: {
+                  select: {
+                    food: {
+                      select: {
+                        id: true,
+                        name: true,
+                        image_url: true,
+                      },
+                    },
+                  },
+                },
+              },
             },
           },
           skip,
-          take: size,
+          take: size + 1,
           orderBy: { created_at: "desc" },
         }),
         prisma.localReview.count({
-          where: { local: { slug } },
+          where: { local_id: local_id },
         }),
       ]);
+
+      const hasMore = reviews.length > size;
+      if (hasMore) reviews.pop();
 
       return {
         data: {
@@ -421,7 +461,7 @@ export class DiscoveryService {
         },
         pagination: {
           page: currentPage,
-          hasMore: total > currentPage * size,
+          hasMore,
         },
       };
     } catch (e) {

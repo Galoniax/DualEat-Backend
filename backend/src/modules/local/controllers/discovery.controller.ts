@@ -4,7 +4,6 @@ import { DiscoveryService } from "../service/discovery.service";
 export class DiscoveryController {
   constructor(private discoveryService: DiscoveryService) {}
 
-  // =========================================================
   // OBTENER LOCAL POR MAPA O PREFERENCIAS
   // =========================================================
   getLocalInBounds = async (req: Request, res: Response) => {
@@ -34,12 +33,18 @@ export class DiscoveryController {
     }
   };
 
-
-  // =========================================================
   // OBTENER HOME FEED
   // =========================================================
   getHomeFeed = async (req: Request, res: Response) => {
-    const { lat, lng, user_id } = req.body;
+    const { lat, lng } = req.query;
+
+    const user_id = (req as any).user?.id || req.query.user_id;
+
+    if (!lat || !lng) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Faltan parámetros de ubicación" });
+    }
 
     try {
       const homeFeed = await this.discoveryService.getHomeFeed(
@@ -47,6 +52,8 @@ export class DiscoveryController {
         Number(lng),
         String(user_id),
       );
+
+      console.log(JSON.stringify(homeFeed, null, 2));
 
       return res.status(200).json({ success: true, data: homeFeed });
     } catch (e) {
@@ -56,7 +63,6 @@ export class DiscoveryController {
     }
   };
 
-  // =========================================================
   // OBTENER LOCALES POR CERCANÍA
   // =========================================================
   getLocalByNearby = async (req: Request, res: Response) => {
@@ -92,20 +98,19 @@ export class DiscoveryController {
     }
   };
 
-  // =========================================================
   // OBTENER LOCAL
   // =========================================================
-  getLocal = async (req: Request, res: Response) => {
-    const { slug } = req.params as { slug: string };
+  getById = async (req: Request, res: Response) => {
+    const { local_id } = req.params as { local_id: string };
 
-    if (!slug || typeof slug !== "string") {
+    if (!local_id || typeof local_id !== "string") {
       return res
         .status(400)
-        .json({ success: false, message: "Slug invalido o no proporcionado" });
+        .json({ success: false, message: "ID invalido o no proporcionado" });
     }
 
     try {
-      const local = await this.discoveryService.getLocal(String(slug));
+      const local = await this.discoveryService.getById(String(local_id));
 
       if (!local)
         return res
@@ -120,17 +125,16 @@ export class DiscoveryController {
     }
   };
 
-  // =========================================================
   // OBTENER REVIEWS DE UN LOCAL
   // =========================================================
   getReviews = async (req: Request, res: Response) => {
-    const { slug } = req.params as { slug: string };
+    const { local_id } = req.params as { local_id: string };
     const { page } = req.query;
 
     try {
       const reviews = await this.discoveryService.getReviews(
+        String(local_id),
         Number(page),
-        String(slug),
       );
 
       if (!reviews)

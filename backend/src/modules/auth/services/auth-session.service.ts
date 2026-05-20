@@ -1,5 +1,5 @@
-import { UserSessionData } from "../../../shared/interfaces/dto/user.dto";
-import SessionService from "../../../core/services/session.service";
+import { UserSessionData } from "@/shared/interfaces/dto/user.dto";
+import SessionService from "@/core/services/session.service";
 
 export class AuthSessionService {
   private readonly SESSION_PREFIX = "session:";

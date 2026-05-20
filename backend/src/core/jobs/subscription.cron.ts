@@ -1,11 +1,10 @@
 import cron from "node-cron";
-import { prisma } from "../database/prisma/prisma";
+import { prisma } from "@/core/database/prisma/prisma";
 
 export class SubscriptionCron {
   public start() {
     // Se ejecuta todos los días a la medianoche (00:00)
     cron.schedule("0 0 * * *", async () => {
-      console.log("[CRON] Iniciando revisión de pases expirados...");
       try {
         const now = new Date();
 
@@ -61,7 +60,5 @@ export class SubscriptionCron {
         console.error("[CRON] Error al procesar expiración de pases:", error);
       }
     });
-
-    console.log("[CRON] SubscriptionCron registrado correctamente.");
   }
 }

@@ -1,12 +1,12 @@
 import { Request, Response } from "express";
-import { RecipeService } from "../../recipe/recipe.service";
+import { RecipeService } from "@/modules/recipe/recipe.service";
 
 import ChatSessionService from "../services/chat-session.service";
-import SessionService from "../../../core/services/session.service";
+import SessionService from "@/core/services/session.service";
 
 import { AIService } from "../services/ai.service";
 
-import { ChatSession } from "src/shared/interfaces/types/chat.types";
+import { ChatSession } from "@/shared/interfaces/types/chat.types";
 
 interface Recipe {
   id: string;
@@ -22,7 +22,6 @@ interface Recipe {
   _count: {
     ingredients: number;
     steps: number;
-    posts: number;
   };
 }
 
@@ -42,14 +41,20 @@ export class ChatController {
 
   constructor(private recipeService: RecipeService) {}
 
-  // =========================================================
   // REALIZAR PREGUNTA A GROQ
   // =========================================================
   ask = async (req: Request, res: Response) => {
-    const { question, conversation, chat_id, recipe_id } = req.body;
+    const { question, conversation, chat_id, recipe_id, ingredients } =
+      req.body;
     const user_id = (req as any).user?.id || req.body.user_id;
 
     // TODO: Implementar sistema de créditos para limitar el uso de la IA / Suscripción
+
+    if (!question) {
+      return res
+        .status(400)
+        .json({ success: false, message: "La pregunta es requerida." });
+    }
 
     try {
       let recipes: PaginatedRecipeResponse | null = null;
@@ -67,6 +72,7 @@ export class ChatController {
       - SIEMPRE usa Markdown para formatear tu respuesta. 
       - Usa negritas (**texto**) para resaltar ingredientes o nombres importantes.
       - Usa listas con viñetas (-) o números (1.) para pasos.
+      - NO injectes links, imagenes, videos u otros elementos multimedia en tus respuestas.
       - Usa saltos de línea (\\n\\n) para separar párrafos.`;
 
       if (recipe_id) {
@@ -88,9 +94,11 @@ export class ChatController {
         intent = await this.aiService.detectIntent(question);
 
         if (intent.type === "SEARCH" && intent.query) {
-          recipes = await this.recipeService.searchRecipes(intent.query, 1);
-
-          console.log("Recetas encontradas:", recipes);
+          recipes = await this.recipeService.searchRecipes(
+            intent.query,
+            ingredients,
+            1,
+          );
 
           if (recipes && recipes.data.length > 0) {
             const data = JSON.stringify(recipes.data);
@@ -148,29 +156,65 @@ export class ChatController {
         recipe_id: recipe_id || null,
       };
 
-      console.log("Recetas: ", recipes?.data);
-
       res.status(200).json({
         success: true,
         data: {
           chat,
           recipes: recipes?.data || null,
-          search_query: intent.type === "SEARCH" ? intent.query : null,
+          search_query: intent?.type === "SEARCH" ? intent.query : null,
         },
       });
 
       this.chatSessionService.addMessage(user_id, chat).catch((e) => {
         console.error("Error crítico guardando en DB el historial de chat:", e);
       });
-    } catch (e) {
-      console.error("Error en ask:", e);
-      return res
-        .status(500)
-        .json({ success: false, message: "Error al generar respuesta" });
+    } catch (e: any) {
+      return res.status(500).json({
+        success: false,
+        message: e.message || "Error al generar respuesta",
+      });
     }
   };
 
+  // ACTUALIZAR CHAT CON RECETA
   // =========================================================
+  updateRecipe = async (req: Request, res: Response) => {
+    const { chat_id, recipe_id } = req.body;
+    const user_id = (req as any).user?.id || req.body.user_id;
+
+    if (!chat_id) {
+      return res.status(400).json({
+        success: false,
+        message: "ID de chat requerido",
+      });
+    }
+    
+    try {
+      const chat = await this.chatSessionService.getById(
+        String(user_id),
+        String(chat_id),
+      );
+
+      if (!chat) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Chat no encontrado" });
+      }
+
+      chat.recipe_id = recipe_id || null;
+      chat.lastActivity = new Date().toISOString();
+
+      await this.chatSessionService.addMessage(user_id, chat);
+
+      return res.status(200).json({ success: true, data: chat });
+    } catch (e: any) {
+      return res.status(500).json({
+        success: false,
+        message: e.message || "Error al actualizar el chat",
+      });
+    }
+  };
+
   // OBTENER CHAT POR ID
   // =========================================================
   getById = async (req: Request, res: Response) => {
@@ -198,7 +242,6 @@ export class ChatController {
     }
   };
 
-  // =========================================================
   // OBTENER CHATS DEL USUARIO
   // =========================================================
   getUserChats = async (req: Request, res: Response) => {
@@ -226,12 +269,11 @@ export class ChatController {
     }
   };
 
-  // =========================================================
   // EDITAR TITULO DEL CHAT
   // =========================================================
   editTitle = async (req: Request, res: Response) => {
-    const { chat_id } = req.params;
-    const { title } = req.body;
+    const { chat_id } = req.params as { chat_id: string };
+    const { title } = req.body as { title: string };
 
     const user_id = (req as any).user?.id || req.body.user_id;
 
@@ -263,10 +305,9 @@ export class ChatController {
     }
   };
 
-  // =========================================================
   // ELIMINAR CHAT
   // =========================================================
-  deleteChat = async (req: Request, res: Response) => {
+  delete = async (req: Request, res: Response) => {
     const { chat_id } = req.params;
     const user_id = (req as any).user?.id || req.body.user_id;
     try {
@@ -290,10 +331,9 @@ export class ChatController {
     }
   };
 
-  // =========================================================
   // ELIMINAR TODOS LOS CHATS DEL USUARIO
   // =========================================================
-  deleteAllChats = async (req: Request, res: Response) => {
+  deleteAll = async (req: Request, res: Response) => {
     const user_id = (req as any).user?.id || req.body.user_id;
     try {
       const chats = await this.chatSessionService.deleteAllChats(

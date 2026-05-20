@@ -1,10 +1,9 @@
-import { prisma } from "../../../core/database/prisma/prisma";
+import { prisma } from "@/core/database/prisma/prisma";
 import { OrderStatus } from "@prisma/client";
 
 export class OrderService {
   constructor() {}
 
-  // =========================================================
   // OBTENER ORDENES DE UN LOCAL
   // =========================================================
   async getOrders(
@@ -49,7 +48,6 @@ export class OrderService {
   };
 
 
-  // =========================================================
   // OBTENER ORDENES DE UN USUARIO
   // =========================================================
   async getUserOrders(u: string, page: number) {
@@ -105,8 +103,6 @@ export class OrderService {
     }
   }
 
-
-  // =========================================================
   // OBTENER ORDEN POR ID
   // =========================================================
   async getOrderById(id: string) {

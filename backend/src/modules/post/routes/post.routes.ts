@@ -4,8 +4,8 @@ import multer from "multer";
 import { PostController } from "../controllers/post.controller";
 import { PostService } from "../services/post.service";
 
-import { isAuthenticated } from "../../../core/middlewares/isAuthenticated";
-import { limiter } from "../../../core/middlewares/rateLimiter";
+import { isAuthenticated } from "@/core/middlewares/isAuthenticated";
+import { limiter } from "@/core/middlewares/rateLimiter";
 
 import { CommentService } from "../services/comment.service";
 import { CommentController } from "../controllers/comment.controller";

@@ -1,5 +1,5 @@
-import { verifyAccessToken } from "../../shared/utils/jwt";
-import AuthSessionService from "../../modules/auth/services/auth-session.service";
+import { verifyAccessToken } from "@/shared/utils/jwt";
+import AuthSessionService from "@/modules/auth/services/auth-session.service";
 
 import { Request, Response, NextFunction } from "express";
 
@@ -47,7 +47,6 @@ export const isAuthenticated = async (
     );
 
     if (!userData) {
-
       console.log("Sesión expirada");
       return res.status(401).clearCookie("accessToken").json({
         success: false,
@@ -67,7 +66,7 @@ export const isAuthenticated = async (
 
     // 4. Adjuntar datos de usuario al request
     req.user = userData;
-    
+
     // 5. Adjuntar datos de sesión al request
     req.sessionId = payload.ses;
 

@@ -56,7 +56,6 @@ export class ReviewController {
       console.error("Error al crear reseña:", error);
 
       if (error.code === "P2002") {
-        // Prisma unique constraint violation
         return res
           .status(400)
           .json({ error: "El usuario ya dejó una reseña en este local." });

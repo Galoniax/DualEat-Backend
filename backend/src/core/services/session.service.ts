@@ -12,7 +12,7 @@ class SessionService {
     this.redis = new Redis({
       host: process.env.REDIS_HOST || "localhost",
       port: parseInt(process.env.REDIS_PORT || "6379"),
-      password: process.env.REDIS_PASSWORD || undefined, 
+      password: process.env.REDIS_PASSWORD || undefined,
       retryStrategy: (times) => Math.min(times * 50, 2000),
     });
 
@@ -53,7 +53,10 @@ class SessionService {
   // Renueva o actualiza el TTL de una clave existente
   async expire(key: string, seconds: number): Promise<boolean> {
     const result = await this.redis.expire(key, seconds);
-    return result === 1;
+
+    if (result === 1) return true;
+
+    return false;
   }
 
   // ==========================================

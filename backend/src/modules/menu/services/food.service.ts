@@ -10,7 +10,7 @@ export class FoodService {
         prisma.food.create({
           data: {
             local_id: localId,
-            
+
             name: dish.name,
             price: dish.price,
             description: null,
@@ -40,7 +40,7 @@ export class FoodService {
             where: { active: true, discount_pct: { gt: 0 }, food_id: null },
           },
           foods: {
-            where: { available: true }, // Asegurar que estén habilitadas
+            where: { available: true },
             include: {
               category: true,
               promotions: {
@@ -57,7 +57,8 @@ export class FoodService {
       if (!local) return null;
 
       const maxGlobalDiscount = local.promotions.reduce(
-        (max, p) => Math.max(max, p.discount_pct || 0), 0
+        (max, p) => Math.max(max, p.discount_pct || 0),
+        0,
       );
 
       // Procesar platos y aplicar descuentos
@@ -119,13 +120,11 @@ export class FoodService {
         ...localWithoutFoods,
         categories: processedCategories,
       };
-
     } catch (e) {
       console.error("Error obteniendo menú:", e);
       return null;
     }
   }
-
 
   async updateFood(
     foodId: string,

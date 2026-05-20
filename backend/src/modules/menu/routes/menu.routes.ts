@@ -7,7 +7,7 @@ import { ManualService } from "../services/manual.service";
 
 import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
-import { limiter } from "../../../core/middlewares/rateLimiter";
+import { limiter } from "@/core/middlewares/rateLimiter";
 
 const router = Router();
 

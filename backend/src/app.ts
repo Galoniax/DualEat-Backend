@@ -25,15 +25,16 @@ import {
   Users,
   Subscription,
   Support,
+  Search,
 } from "./index";
 
 // Configuración y utilidades
 import { configurePassport } from "./core/config/passport";
 import { redisClient } from "./core/config/redis";
 import { API_PREFIX } from "./core/config/config";
-import { initializeSocket } from "./core/config/socket.config";
-import { CleanupJob } from "./core/jobs/cleanup.job";
-import { SubscriptionCron } from "./core/jobs/subscription.cron";
+import { initializeSocket } from "@/core/config/socket.config";
+import { CleanupJob } from "@/core/jobs/cleanup.job";
+import { SubscriptionCron } from "@/core/jobs/subscription.cron";
 
 // Inicialización de variables de entorno y aplicación
 dotenv.config();
@@ -116,6 +117,7 @@ configurePassport();
 // Rutas de Módulos
 app.use(`${API_PREFIX}/auth`, Auth);
 app.use(`${API_PREFIX}/contact`, Contact);
+app.use(`${API_PREFIX}/search`, Search);
 
 // Módulo de Comunidad
 app.use(`${API_PREFIX}/community`, Community);

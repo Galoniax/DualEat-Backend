@@ -1,4 +1,4 @@
-import { prisma } from "../../core/database/prisma/prisma";
+import { prisma } from "@/core/database/prisma/prisma";
 import { LocalNotificationService } from "../notification/local/local-notification.service";
 
 export class ReviewService {

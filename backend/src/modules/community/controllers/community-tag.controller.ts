@@ -8,7 +8,6 @@ export class CommunityTagController {
     private tagCategoryService: TagCategoryService,
   ) {}
 
-  // =========================================================
   // OBTENER TODAS LAS CATEGORIAS DE ETIQUETAS
   // =========================================================
   getAllCategories = async (req: Request, res: Response) => {
@@ -29,7 +28,6 @@ export class CommunityTagController {
     }
   };
 
-  // =========================================================
   // OBTENER TODAS LAS ETIQUETAS
   // =========================================================
   getAllTags = async (req: Request, res: Response) => {
@@ -49,7 +47,6 @@ export class CommunityTagController {
     }
   };
 
-  // =========================================================
   // CREAR ETIQUETA (POST)
   // =========================================================
   create = async (req: Request, res: Response) => {
@@ -71,7 +68,7 @@ export class CommunityTagController {
     }
   };
 
-  // =========================================================
+
   // OBTENER ETIQUETAS POR ID DE CATEGORIA
   // =========================================================
   getByCategoryId = async (req: Request, res: Response) => {
@@ -94,7 +91,6 @@ export class CommunityTagController {
     }
   };
 
-  // =========================================================
   // ACTUALIZAR ETIQUETA
   // =========================================================
   update = async (req: Request, res: Response) => {
@@ -118,7 +114,6 @@ export class CommunityTagController {
     }
   };
 
-  // =========================================================
   // ELIMINAR ETIQUETA
   // =========================================================
   delete = async (req: Request, res: Response) => {

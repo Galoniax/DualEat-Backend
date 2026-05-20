@@ -1,5 +1,5 @@
-import { prisma } from "../../../core/database/prisma/prisma";
-import { getSocketServer } from "../../../core/config/socket.config";
+import { prisma } from "@/core/database/prisma/prisma";
+import { getSocketServer } from "@/core/config/socket.config";
 
 export class LocalNotificationService {
   /**

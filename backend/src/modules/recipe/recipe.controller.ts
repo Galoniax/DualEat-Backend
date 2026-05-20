@@ -4,7 +4,6 @@ import { RecipeService } from "./recipe.service";
 export class RecipeController {
   constructor(private recipeService: RecipeService) {}
 
-  // =========================================================
   // OBTENER INGREDIENTES
   // =========================================================
   getAllIngredients = async (req: Request, res: Response) => {
@@ -25,7 +24,6 @@ export class RecipeController {
     }
   };
 
-  // =========================================================
   // OBTENER RECETA POR ID
   // =========================================================
   getById = async (req: Request, res: Response) => {
@@ -52,7 +50,6 @@ export class RecipeController {
     }
   };
 
-  // =========================================================
   // OBTENER RECETAS DEL USUARIO
   // =========================================================
   getUserRecipes = async (req: Request, res: Response) => {
@@ -67,7 +64,6 @@ export class RecipeController {
     }
   };
 
-  // =========================================================
   // OBTENER RECETAS POR IDs
   // =========================================================
   getByIds = async (req: Request, res: Response) => {
@@ -94,7 +90,6 @@ export class RecipeController {
     }
   };
 
-  // =========================================================
   // BUSCAR RECETAS POR NOMBRE (PAGINATION)
   // =========================================================
   searchRecipes = async (req: Request, res: Response) => {

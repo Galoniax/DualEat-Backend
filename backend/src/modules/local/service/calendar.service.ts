@@ -5,7 +5,7 @@ import {
   EventStatus,
 } from "@prisma/client";
 
-import { prisma } from "../../../core/database/prisma/prisma";
+import { prisma } from "@/core/database/prisma/prisma";
 
 export class CalendarService {
   constructor() {}

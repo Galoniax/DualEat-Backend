@@ -1,50 +1,50 @@
 import { Request, Response } from "express";
 import { CommentService } from "../services/comment.service";
+import { CommentDTO } from "@/shared/interfaces/dto/post.dto";
 
 export class CommentController {
   constructor(private commentService: CommentService) {}
 
-  // =========================================================
   // CREAR COMENTARIO
   // =========================================================
   create = async (req: Request, res: Response) => {
-    const { post_id, content, parent_comment_id } = req.body as {
-      post_id: string;
-      content: string;
-      parent_comment_id?: string;
-    };
+    const { comment } = req.body as { comment: CommentDTO };
 
     const user_id = (req as any).user?.id || req.body.user_id;
 
-    if (!post_id || !content) {
+    if (!comment.post_id || !comment.content) {
       return res
         .status(400)
         .json({ success: false, message: "Faltan datos requeridos" });
     }
 
     try {
-      const comment = await this.commentService.create(
-        String(post_id),
-        String(content),
+      const result = await this.commentService.create(
+        String(comment.post_id),
         String(user_id),
-        parent_comment_id ? String(parent_comment_id) : null,
+        String(comment.content),
+
+        comment.parent_comment_id ? String(comment.parent_comment_id) : null,
+        comment.reply_to_user_id ? String(comment.reply_to_user_id) : null,
       );
 
-      if (!comment) {
+      if (!result) {
         return res
           .status(400)
           .json({ success: false, message: "Error al crear el comentario" });
       }
 
-      return res.status(201).json({ success: true, data: comment });
-    } catch (e) {
+      return res.status(201).json({ success: true, data: result });
+    } catch (e: any) {
       return res
         .status(500)
-        .json({ success: false, message: "Error interno del servidor" });
+        .json({
+          success: false,
+          message: e.message || "Error interno del servidor",
+        });
     }
   };
 
-  // =========================================================
   // OBTENER COMENTARIOS DE UN POST
   // =========================================================
   getComments = async (req: Request, res: Response) => {
@@ -86,7 +86,6 @@ export class CommentController {
     }
   };
 
-  // =========================================================
   // OBTENER RESPUESTAS DE UN COMENTARIO
   // =========================================================
   getReplies = async (req: Request, res: Response) => {
@@ -128,7 +127,6 @@ export class CommentController {
     }
   };
 
-  // =========================================================
   // ELIMINAR COMENTARIO
   // =========================================================
   delete = async (req: Request, res: Response) => {

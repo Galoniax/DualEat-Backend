@@ -1,6 +1,6 @@
 import { ContentType, Vote, VoteType } from "@prisma/client";
-import { getSocketServer } from "../../../core/config/socket.config";
-import { prisma } from "../../../core/database/prisma/prisma";
+import { getSocketServer } from "@/core/config/socket.config";
+import { prisma } from "@/core/database/prisma/prisma";
 
 export class CommentService {
   private async sendCommentNotification(
@@ -8,6 +8,7 @@ export class CommentService {
     user_id: string,
     content: string,
     parent_comment_id?: string | null,
+    reply_to_user_id?: string | null,
   ) {
     try {
       let recipientUserId: string | null = null;
@@ -211,8 +212,6 @@ export class CommentService {
       const hasMore = replies.length > size;
       if (hasMore) replies.pop();
 
-      console.log("Replies", replies);
-
       let votes: Vote[] = [];
 
       if (user_id) {
@@ -256,6 +255,7 @@ export class CommentService {
     user_id: string,
     content: string,
     parent_comment_id?: string | null,
+    reply_to_user_id?: string | null,
   ) {
     try {
       const result = await prisma.$transaction(async (tx) => {
@@ -265,7 +265,9 @@ export class CommentService {
             post_id,
             user_id,
             parent_comment_id,
+            reply_to_user_id,
           },
+
           include: {
             user: {
               select: {
@@ -275,7 +277,13 @@ export class CommentService {
                 avatar_url: true,
               },
             },
-            replies: true,
+            reply_to_user: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
           },
         });
 
@@ -291,18 +299,19 @@ export class CommentService {
         return comment;
       });
 
-      if (result) {
+      /*if (result) {
         await this.sendCommentNotification(
           post_id,
           user_id,
           content,
           parent_comment_id,
+          reply_to_user_id,
         );
-      }
+      }*/
 
       return result;
     } catch (e) {
-      return null;
+      throw e;
     }
   }
 

@@ -1,10 +1,11 @@
 import { Request, Response } from "express";
 import { CommunityService } from "../services/community.service";
 
-import { supabaseAdmin, uploadFiles } from "../../../core/config/supabase";
+import { supabaseAdmin, uploadFiles } from "@/core/config/supabase";
 import { CommunityTagService } from "../services/community-tag.service";
-import { optimize } from "../../../shared/utils/sharp";
-import { CommunityDTO } from "src/shared/interfaces/dto/community.dto";
+import { optimize } from "@/shared/utils/sharp";
+import { CommunityDTO } from "@/shared/interfaces/dto/community.dto";
+import { CommunityTag } from "@prisma/client";
 
 export class CommunityController {
   constructor(
@@ -65,21 +66,24 @@ export class CommunityController {
 
     const user_id = (req as any).user?.id || req.body.user_id;
 
-    if (
-      !community.name ||
-      !community.description ||
-      !community.tags ||
-      !community.image_url ||
-      !community.banner_url
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Todos los campos son obligatorios.",
-      });
-    }
-
     try {
-      const result = await this.communityService.create(community, String(user_id));
+      if (
+        !community?.name ||
+        !community?.description ||
+        !community?.tags ||
+        !community?.image_url ||
+        !community?.banner_url
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Todos los campos son obligatorios.",
+        });
+      }
+
+      const result = await this.communityService.create(
+        community,
+        String(user_id),
+      );
 
       return res.status(201).json({ success: true, data: result });
     } catch (e: any) {
@@ -206,12 +210,7 @@ export class CommunityController {
   getByCategorySkeleton = async (req: Request, res: Response) => {
     const { category_id } = req.params;
 
-    if (!category_id) {
-      return res.status(400).json({
-        success: false,
-        message: "El ID de la categoría es inválido o no se proporcionó.",
-      });
-    }
+    console.log(category_id);
 
     try {
       const tags = await this.tagService.getByCategoryId(Number(category_id));

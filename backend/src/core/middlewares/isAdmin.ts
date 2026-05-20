@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { UserSessionData } from "../../shared/interfaces/user.dto";
+import { UserSessionData } from "@/shared/interfaces/dto/user.dto";
 
 export const isAdmin = (req: Request, res: Response, next: NextFunction) => {
   const user = req.user as UserSessionData;

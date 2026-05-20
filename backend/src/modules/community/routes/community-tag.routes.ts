@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { CommunityTagController } from "../controllers/community-tag.controller";
 
-import { isAuthenticated } from "../../../core/middlewares/isAuthenticated";
-import { limiter } from "../../../core/middlewares/rateLimiter";
-import { CommunityTagService } from "../services/community-tag.service";
-import { TagCategoryService } from "../services/tag-category.service";
+import { isAuthenticated } from "@/core/middlewares/isAuthenticated";
+import { limiter } from "@/core/middlewares/rateLimiter";
+import { CommunityTagService } from "@/modules/community/services/community-tag.service";
+import { TagCategoryService } from "@/modules/community/services/tag-category.service";
 
 const router = Router();
 

@@ -6,7 +6,7 @@ export class CartService {
     private readonly localService: SettingsService,
     private readonly foodService: FoodService,
   ) {}
-  // =========================================================
+ 
   // OBTENER INFORMACIÓN DEL CARRITO
   // =========================================================
   getCartInfo = async (

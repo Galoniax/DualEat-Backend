@@ -1,8 +1,8 @@
-import { prisma } from "../../core/database/prisma/prisma";
+import { prisma } from "@/core/database/prisma/prisma";
 import { ContentType, VoteType, Prisma } from "@prisma/client";
 
 export class VoteService {
-  // =========================================================
+
   // ACTUALIZAR VOTOS (private)
   // =========================================================
   private async updateContentVotes(
@@ -20,7 +20,6 @@ export class VoteService {
     throw new Error("Tipo de contenido no soportado");
   }
 
-  // =========================================================
   // CREAR VOTO
   // =========================================================
   async create(

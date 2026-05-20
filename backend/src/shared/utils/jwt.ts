@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { SECRET_KEY } from "../../core/config/config";
+import { SECRET_KEY } from "@/core/config/config";
 import {
   SecureTokenPayload,
   UserSessionData,

@@ -1,7 +1,8 @@
-import { prisma } from "../../core/database/prisma/prisma";
+import { Ingredient } from "@prisma/client";
+import { prisma } from "@/core/database/prisma/prisma";
 
 export class RecipeService {
-  // =========================================================
+
   // OBTENER INGREDIENTES
   // =========================================================
   async getAllIngredients() {
@@ -18,7 +19,6 @@ export class RecipeService {
     }
   }
 
-  // =========================================================
   // OBTENER RECETA POR ID
   // =========================================================
   async getById(id: string) {
@@ -56,15 +56,14 @@ export class RecipeService {
 
       return {
         ...recipe,
-        votes_up: votes._sum.votes_up,
-        votes_down: votes._sum.votes_down,
+        votes_up: votes?._sum?.votes_up || 0,
+        votes_down: votes?._sum?.votes_down || 0,
       };
     } catch (e) {
       return null;
     }
   }
 
-  // =========================================================
   // OBTENER RECETAS POR IDs
   // =========================================================
   async getByIds(ids: string[]) {
@@ -92,7 +91,6 @@ export class RecipeService {
     }
   }
 
-  // =========================================================
   // OBTENER RECETAS DEL USUARIO
   // =========================================================
   async getUserRecipes(user_id: string) {
@@ -114,45 +112,39 @@ export class RecipeService {
     }
   }
 
-  // =========================================================
   // BUSCAR RECETAS
   // =========================================================
-  async searchRecipes(query: string, page: number) {
+  async searchRecipes(
+    query: string,
+    ingredients: Ingredient[] | null,
+    page: number,
+  ) {
     try {
       const size = 5;
       const currentPage = Math.max(1, page);
       const skip = (currentPage - 1) * size;
 
-      const words = query.split(" ").filter((word) => word.length > 3);
-
       const result = await prisma.recipe.findMany({
         where: {
-          OR: [
-            { name: { contains: query, mode: "insensitive" } },
-            {
-              AND: words.map((word) => ({
-                name: { contains: word, mode: "insensitive" },
-              })),
-            },
-            {
+          // FILTRO DE INGREDIENTES
+          ...(ingredients &&
+            ingredients.length > 0 && {
               ingredients: {
-                some: {
-                  ingredient: {
-                    AND: words.map((word) => ({
-                      name: { contains: word, mode: "insensitive" },
-                    })),
+                every: {
+                  ingredient_id: {
+                    in: ingredients.map((ingredient) => ingredient.id),
                   },
                 },
               },
-            },
-          ],
-        },
-        select: {
-          id: true,
-          name: true,
-          main_image: true,
-          total_time: true,
+            }),
 
+          // FILTRO DE BÚSQUEDA DE TEXTO
+          ...(query &&
+            query.trim() !== "" && {
+              OR: [{ name: { contains: query, mode: "insensitive" as const } }],
+            }),
+        },
+        include: {
           user: {
             select: {
               id: true,
@@ -165,7 +157,6 @@ export class RecipeService {
             select: {
               ingredients: true,
               steps: true,
-              posts: true,
             },
           },
         },
@@ -179,8 +170,33 @@ export class RecipeService {
       const hasMore = result.length > size;
       if (hasMore) result.pop();
 
+      const recipeIds = result.map((recipe) => recipe.id);
+
+      const votes = await prisma.post.groupBy({
+        by: ["recipe_id"],
+        _sum: {
+          votes_up: true,
+          votes_down: true,
+        },
+        where: {
+          recipe_id: { in: recipeIds },
+        },
+      });
+
+      const data = result.map((recipe) => {
+        const recipeVotes = votes.find(
+          (v) => v.recipe_id === recipe.id,
+        );
+
+        return {
+          ...recipe,
+          votes_up: recipeVotes?._sum?.votes_up || 0,
+          votes_down: recipeVotes?._sum?.votes_down || 0,
+        };
+      });
+
       return {
-        data: result,
+        data: data,
         pagination: {
           page: currentPage,
           hasMore,

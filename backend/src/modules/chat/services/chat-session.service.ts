@@ -1,5 +1,5 @@
-import { ChatSession } from "src/shared/interfaces/types/chat.types";
-import SessionService from "../../../core/services/session.service";
+import { ChatSession } from "@/shared/interfaces/types/chat.types";
+import SessionService from "@/core/services/session.service";
 
 export class ChatSessionService {
   private readonly SESSION_PREFIX = "chat:";
@@ -16,7 +16,6 @@ export class ChatSessionService {
     return ChatSessionService.instance;
   }
 
-  // =========================================================
   // OBTENER CHAT POR ID
   // =========================================================
   async getById(u_id: string, c_id: string): Promise<ChatSession | null> {
@@ -35,7 +34,6 @@ export class ChatSessionService {
     }
   }
 
-  // =========================================================
   // OBTENER TODOS LOS CHATS DE UN USUARIO
   // =========================================================
   async getUserChats(
@@ -85,7 +83,6 @@ export class ChatSessionService {
     }
   }
 
-  // =========================================================
   // AGREGAR MENSAJES AL CHAT
   // =========================================================
   async addMessage(
@@ -106,7 +103,6 @@ export class ChatSessionService {
       const data = await this.sessionService.get(redisKey);
 
       if (data) {
-        // ==========================================
         // CASO A: EL CHAT YA EXISTE (Actualizamos)
         // ==========================================
         const chatData: ChatSession = JSON.parse(data);
@@ -114,8 +110,10 @@ export class ChatSessionService {
         chatData.messages.push(...chat.messages);
         chatData.lastActivity = new Date().toISOString();
 
-        chatData.title = chat.title;
-        
+        if (chat.title) {
+          chatData.title = chat.title;
+        }
+
         if (chat.recipe_id) {
           chatData.recipe_id = chat.recipe_id;
         }
@@ -125,7 +123,6 @@ export class ChatSessionService {
 
         return chatData;
       } else {
-        // ==========================================
         // CASO B: EL CHAT ES NUEVO (Creamos)
         // ==========================================
         const chatData: ChatSession = {
@@ -134,19 +131,18 @@ export class ChatSessionService {
           createdAt: chat.createdAt,
           lastActivity: chat.lastActivity,
           messages: chat.messages,
-          recipe_id: chat.recipe_id || undefined,
+          recipe_id: null,
         };
 
         await this.sessionService.set(redisKey, JSON.stringify(chatData), ttl);
 
         return chatData;
       }
-    } catch (e) {
-      return null;
+    } catch (e: any) {
+      throw new Error("Ocurrió un error interno al guardar el mensaje.");
     }
   }
 
-  // =========================================================
   // EDITAR TITULO DEL CHAT
   // =========================================================
   async editTitle(c_id: string, u_id: string, t: string) {
@@ -155,7 +151,9 @@ export class ChatSessionService {
 
       const data = await this.sessionService.get(redisKey);
 
-      if (!data) return null;
+      if (!data) {
+        throw new Error("Chat no encontrado");
+      }
 
       const chatData: ChatSession = JSON.parse(data);
       chatData.title = t;
@@ -163,15 +161,18 @@ export class ChatSessionService {
 
       const ttl = await this.sessionService.getTtl(redisKey);
 
-      await this.sessionService.set(redisKey, JSON.stringify(chatData), ttl);
+      if (ttl > 0) {
+        await this.sessionService.set(redisKey, JSON.stringify(chatData), ttl);
+      } else {
+        throw new Error("El chat expiró o no existe.");
+      }
 
       return chatData;
-    } catch (e) {
-      return null;
+    } catch (e: any) {
+      throw new Error(e.message);
     }
   }
 
-  // =========================================================
   // ELIMINAR CHAT
   // =========================================================
   async deleteChat(c_id: string, u_id: string): Promise<boolean> {
@@ -189,7 +190,6 @@ export class ChatSessionService {
     }
   }
 
-  // =========================================================
   // ELIMINAR TODOS LOS CHATS DE UN USUARIO
   // =========================================================
   async deleteAllChats(u_id: string): Promise<boolean> {

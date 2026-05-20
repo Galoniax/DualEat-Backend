@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { SettingsService } from "../service/settings.service";
 import { StatisticsService } from "../service/statistics.service";
-import { QrService } from "../../../core/services/qr.service";
+import { QrService } from "@/core/services/qr.service";
 
 import { DayOfWeek } from "@prisma/client";
 
@@ -69,17 +69,17 @@ export class LocalController {
   };
 
   getSchedules = async (req: Request, res: Response) => {
-    const { slug } = req.params;
+    const { local_id } = req.params as { local_id: string };
 
-    if (!slug || typeof slug !== "string") {
+    if (!local_id || typeof local_id !== "string") {
       return res
         .status(400)
-        .json({ success: false, message: "Slug invalido o no proporcionado" });
+        .json({ success: false, message: "ID invalido o no proporcionado" });
     }
 
     try {
       const schedules = await this.settingsService.getLocalSchedules(
-        String(slug),
+        local_id,
       );
 
       if (!schedules)

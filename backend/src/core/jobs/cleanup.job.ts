@@ -1,5 +1,5 @@
 import cron, { ScheduledTask } from "node-cron";
-import { prisma } from "../database/prisma/prisma";
+import { prisma } from "@/core/database/prisma/prisma";
 
 export class CleanupJob {
   private isRunning: boolean;

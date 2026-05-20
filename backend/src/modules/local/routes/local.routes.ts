@@ -14,6 +14,7 @@ import { LocalController } from "../controllers/local.controller";
 import { AgendaController } from "../controllers/agenda.controller";
 import { DiscoveryController } from "../controllers/discovery.controller";
 import { FoodService } from "../../menu/services/food.service";
+import { isAuthenticated } from "@/core/middlewares/isAuthenticated";
 
 const router = Router();
 
@@ -57,14 +58,17 @@ const upload = multer({ storage: multer.memoryStorage() });
 // Obtener locales en mapa por coordenadas y preferencias
 router.post("/discovery/bounds", discoveryController.getLocalInBounds);
 
+// Obtener home feed
+router.get("/discovery/home", isAuthenticated, discoveryController.getHomeFeed);
+
 // Obtener detalle de un local
-router.get("/discovery/local/:slug", discoveryController.getLocal);
+router.get("/discovery/:local_id", discoveryController.getById);
 
 // Obtener locales por cercanía
 router.post("/discovery/nearby", discoveryController.getLocalByNearby);
 
 // Obtener reviews paginadas
-router.get("/discovery/local/:slug/reviews", discoveryController.getReviews);
+router.get("/discovery/:local_id/reviews", discoveryController.getReviews);
 
 // =========================================================
 // 2. CONFIGURACIÓN Y SETTINGS

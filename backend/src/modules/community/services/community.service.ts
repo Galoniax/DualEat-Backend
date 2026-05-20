@@ -1,7 +1,7 @@
-import { prisma } from "../../../core/database/prisma/prisma";
+import { prisma } from "@/core/database/prisma/prisma";
 import { Prisma } from "@prisma/client";
-import { CommunityDTO } from "../../../shared/interfaces/dto/community.dto";
-import { generateSlug } from "../../../shared/utils/sluglify";
+import { CommunityDTO } from "@/shared/interfaces/dto/community.dto";
+import { generateSlug } from "@/shared/utils/sluglify";
 
 export class CommunityService {
   // CREAR COMUNIDAD
@@ -18,7 +18,6 @@ export class CommunityService {
               image_url: community.image_url,
               banner_url: community.banner_url,
               creator_id: user_id,
-              total_members: 1,
               tags: {
                 connect: community.tags.map((id) => ({ id })),
               },

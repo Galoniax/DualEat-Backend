@@ -5,14 +5,22 @@ export class NotificationService {
   constructor() {}
 
   /** GET USER NOTIFICATIONS */
-  async getUserNotifications(user_id: string, readed: string) {
+  async getAll(user_id: string) {
     try {
       const result = await prisma.notification.findMany({
         where: {
           user_id,
           deleted: false,
-          ...(readed === "true" && { read: true }),
-          ...(readed === "false" && { read: false }),
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              slug: true,
+              name: true,
+              avatar_url: true,
+            },
+          },
         },
         orderBy: {
           created_at: "desc",
@@ -20,13 +28,13 @@ export class NotificationService {
       });
 
       return result;
-    } catch (error) {
-      throw new Error(`Error al obtener notificaciones: ${error}`);
+    } catch (e) {
+      throw new Error(`Error al obtener notificaciones: ${e}`);
     }
   }
 
   /** CHANGE NOTIFICATION STATUS  */
-  async changeNotificationStatus(
+  async changeStatus(
     community_id: string,
     user_id: string,
     type: string,
@@ -127,7 +135,7 @@ export class NotificationService {
   }
 
   /** DELETE ALL NOTIFICATIONS */
-  async deleteAllNotifications(user_id: string) {
+  async deleteAll(user_id: string) {
     try {
       const result = await prisma.notification.updateMany({
         where: {
@@ -145,7 +153,7 @@ export class NotificationService {
   }
 
   /** DELETE NOTIFICATION */
-  async deleteNotification(id: string, user_id: string) {
+  async delete(id: string, user_id: string) {
     try {
       const result = await prisma.notification.update({
         where: {
@@ -162,6 +170,10 @@ export class NotificationService {
     }
   }
 
+
+
+
+  
   /** CREATE NOTIFICATION (usado internamente por otros servicios) */
   async createNotification(data: CreateNotificationDTO) {
     try {

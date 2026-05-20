@@ -7,15 +7,15 @@ import { UserService } from "../services/user.service";
 import { PasswordService } from "../services/password.service";
 import { PasswordController } from "../controllers/password.controller";
 
-import { limiter } from "../../../core/middlewares/rateLimiter";
-import { isAuthenticated } from "../../../core/middlewares/isAuthenticated";
+import { limiter } from "@/core/middlewares/rateLimiter";
+import { isAuthenticated } from "@/core/middlewares/isAuthenticated";
 
-import { createTempToken, createSecureToken } from "../../../shared/utils/jwt";
+import { createTempToken, createSecureToken } from "@/shared/utils/jwt";
 import {
   UserSessionData,
   TempTokenPayload,
-} from "../../../shared/interfaces/dto/user.dto";
-import { prisma } from "../../../core/database/prisma/prisma";
+} from "@/shared/interfaces/dto/user.dto";
+import { prisma } from "@/core/database/prisma/prisma";
 
 const router = Router();
 
@@ -118,7 +118,7 @@ router.get(
           return res.redirect(`${process.env.FRONTEND_URL}/login?error=local_pending`);
         }
       }
-
+      
       // ============================================================
       // RESTRICCIÓN DE PERSONAL (STAFF) EN WEB
       // ============================================================
@@ -133,7 +133,7 @@ router.get(
         }
       }
 
-      const workplaceData = workplaces.map(workplace => ({
+      const workplaceData = workplaces.map((workplace: { role: any; }) => ({
         id: (workplace as any).local.id,
         slug: (workplace as any).local.slug,
         name: (workplace as any).local.name,

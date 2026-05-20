@@ -14,7 +14,6 @@ export class MenuController {
     private manualService: ManualService,
   ) {}
 
-  // ============================================
   // FOODS - LIST & GET
   // ============================================
   getFoods = async (req: Request, res: Response) => {
@@ -255,7 +254,7 @@ export class MenuController {
 
       } finally {
         // 4. Borrar el archivo temporal, ignorando si ya fue borrado por el OCR (ENOENT)
-        await fs.unlink(tempFilePath).catch(err => {
+        await fs.unlink(tempFilePath).catch((err: any) => {
           if (err.code !== 'ENOENT') {
             console.error("Error borrando archivo temporal:", err);
           }

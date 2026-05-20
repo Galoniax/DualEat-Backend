@@ -1,4 +1,4 @@
-import { prisma } from "../../../core/database/prisma/prisma";
+import { prisma } from "@/core/database/prisma/prisma";
 import { CommunityTag } from "@prisma/client";
 
 export class CommunityTagService {
@@ -18,8 +18,8 @@ export class CommunityTagService {
     try {
       return await prisma.communityTag.findMany({
         where: {
-          category_id,
           active: true,
+          ...(category_id ? { category_id } : {}),
         },
         select: {
           id: true,

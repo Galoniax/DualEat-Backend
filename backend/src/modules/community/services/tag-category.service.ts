@@ -1,4 +1,4 @@
-import { prisma } from "../../../core/database/prisma/prisma";
+import { prisma } from "@/core/database/prisma/prisma";
 import { TagCategory } from "@prisma/client";
 
 export class TagCategoryService {

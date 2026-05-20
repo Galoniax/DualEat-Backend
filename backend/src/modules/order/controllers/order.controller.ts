@@ -9,7 +9,6 @@ const notificationService = new NotificationService();
 export class OrderController {
   constructor(private orderService: OrderService) {}
 
-  // =========================================================
   // OBTENER ORDENES DE UN LOCAL
   // =========================================================
   getOrders = async (req: Request, res: Response) => {
@@ -35,7 +34,6 @@ export class OrderController {
     }
   };
 
-  // =========================================================
   // OBTENER ORDENES DE UN USUARIO
   // =========================================================
   getUserOrders = async (req: Request, res: Response) => {
@@ -69,10 +67,9 @@ export class OrderController {
     }
   };
 
-  // =========================================================
   // OBTENER ORDEN POR ID
   // =========================================================
-  getOrderById = async (req: Request, res: Response) => {
+  getById = async (req: Request, res: Response) => {
     const { id } = req.params;
 
     if (typeof id !== "string" || !id) {
