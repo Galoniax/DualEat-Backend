@@ -8,7 +8,7 @@ import {
 } from "../controllers/local.controller";
 
 import { isAdmin } from '../core/middlewares/isAdmin';
-import { isAuthenticated } from '../core/middlewares/isAuthenticated';
+import { isAuthenticated } from "@/core/middlewares/isAuthenticated";
 
 const router = Router();
 

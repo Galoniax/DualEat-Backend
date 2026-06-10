@@ -2,7 +2,7 @@ import { Router } from "express";
 import { NotificationController } from "../controllers/notification.controller";
 import { NotificationService } from "../services/notification.service";
 
-import { isAuthenticated } from "../../../core/middlewares/isAuthenticated";
+import { isAuthenticated } from "@/core/middlewares/isAuthenticated";
 
 const router = Router();
 const service = new NotificationService();

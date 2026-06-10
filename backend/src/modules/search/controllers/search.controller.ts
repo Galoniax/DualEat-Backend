@@ -35,7 +35,7 @@ export class SearchController {
     if (!query || !tab) {
       return res.status(400).json({
         success: false,
-        message: "Datos invalidos ",
+        message: "Datos invalidos",
       });
     }
     try {

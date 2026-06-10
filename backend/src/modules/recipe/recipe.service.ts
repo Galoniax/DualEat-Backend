@@ -2,7 +2,6 @@ import { Ingredient } from "@prisma/client";
 import { prisma } from "@/core/database/prisma/prisma";
 
 export class RecipeService {
-
   // OBTENER INGREDIENTES
   // =========================================================
   async getAllIngredients() {
@@ -11,6 +10,10 @@ export class RecipeService {
         select: {
           id: true,
           name: true,
+          fat: true,
+          calories: true,
+          carbs: true,
+          proteins: true,
         },
       });
       return result;
@@ -124,25 +127,41 @@ export class RecipeService {
       const currentPage = Math.max(1, page);
       const skip = (currentPage - 1) * size;
 
+      const words = query.split(" ").filter((word) => word.length > 3);
+
       const result = await prisma.recipe.findMany({
         where: {
-          // FILTRO DE INGREDIENTES
-          ...(ingredients &&
-            ingredients.length > 0 && {
+          OR: [
+            { name: { contains: query, mode: "insensitive" } },
+            {
+              AND: words.map((word) => ({
+                name: { contains: word, mode: "insensitive" },
+              })),
+            },
+            {
               ingredients: {
                 every: {
-                  ingredient_id: {
-                    in: ingredients.map((ingredient) => ingredient.id),
+                  ingredient: {
+                    name: { contains: query, mode: "insensitive" },
                   },
                 },
               },
-            }),
+            },
 
-          // FILTRO DE BÚSQUEDA DE TEXTO
-          ...(query &&
-            query.trim() !== "" && {
-              OR: [{ name: { contains: query, mode: "insensitive" as const } }],
-            }),
+            ...(ingredients && ingredients.length > 0
+              ? [
+                  {
+                    ingredients: {
+                      every: {
+                        ingredient_id: {
+                          in: ingredients.map((ing) => ing.id),
+                        },
+                      },
+                    },
+                  },
+                ]
+              : []),
+          ],
         },
         include: {
           user: {
@@ -184,9 +203,7 @@ export class RecipeService {
       });
 
       const data = result.map((recipe) => {
-        const recipeVotes = votes.find(
-          (v) => v.recipe_id === recipe.id,
-        );
+        const recipeVotes = votes.find((v) => v.recipe_id === recipe.id);
 
         return {
           ...recipe,

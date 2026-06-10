@@ -1,4 +1,5 @@
 export interface PostDTO {
+  id?: string;
   title: string;
   content: string;
   image_urls: string[];
@@ -8,8 +9,8 @@ export interface PostDTO {
 
 export interface CommentDTO {
   post_id: string;
-  parent_comment_id?: string | null;
-  reply_to_user_id?: string | null;
+  parent_comment_id: string | null;
+  reply_to_user_id: string | null;
   content: string;
 }
 
