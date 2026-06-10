@@ -23,7 +23,10 @@ router.get("/tags", controller.getAllTags.bind(controller));
 
 // 3. Obtener todas las etiquetas por categorias (por id de la categoria)
 // =========================================================
-router.get("/tags/category/:category_id", controller.getByCategoryId.bind(controller));
+router.get(
+  "/tags/category/:category_id",
+  controller.getByCategoryId.bind(controller),
+);
 
 // 4. Crear una nueva etiqueta
 // =========================================================

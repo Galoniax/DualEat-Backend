@@ -128,6 +128,8 @@ export class CommunityService {
       }
 
       let isMember = false;
+      let isModerator = false;
+
       let receives_notifications: string | null = null;
 
       if (user_id) {
@@ -136,13 +138,11 @@ export class CommunityService {
             community_id: community.id,
             user_id,
           },
-          select: {
-            receives_notifications: true,
-          },
         });
 
         if (member) {
           isMember = true;
+          isModerator = member.is_moderator;
           receives_notifications = member.receives_notifications;
         }
       }
@@ -150,6 +150,7 @@ export class CommunityService {
       return {
         ...community,
         isMember,
+        is_moderator: isModerator,
         receives_notifications,
       };
     } catch (e) {
@@ -163,7 +164,7 @@ export class CommunityService {
     try {
       const community = await prisma.community.findFirst({
         where: {
-          name: { contains: name.trim(), mode: "insensitive" },
+          name: { contains: name, mode: "insensitive" },
           active: true,
         },
         select: {
@@ -182,13 +183,9 @@ export class CommunityService {
         },
       });
 
-      if (!community) {
-        return null;
-      }
-
       return community;
     } catch (e: any) {
-      return null;
+      throw new Error(`Error al obtener comunidad: ${e}`);
     }
   }
 
@@ -198,15 +195,9 @@ export class CommunityService {
     try {
       const result = await prisma.communityMember.findMany({
         where: { user_id },
-        select: {
+        include: {
           community: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-              image_url: true,
-              description: true,
-              total_members: true,
+            include: {
               tags: {
                 select: {
                   id: true,

@@ -5,7 +5,6 @@ import { supabaseAdmin, uploadFiles } from "@/core/config/supabase";
 import { CommunityTagService } from "../services/community-tag.service";
 import { optimize } from "@/shared/utils/sharp";
 import { CommunityDTO } from "@/shared/interfaces/dto/community.dto";
-import { CommunityTag } from "@prisma/client";
 
 export class CommunityController {
   constructor(
@@ -52,9 +51,9 @@ export class CommunityController {
         urls: uploaded,
       });
     } catch (e: any) {
-      return res.status(400).json({
+      return res.status(500).json({
         success: false,
-        message: e.message || "No se pudieron subir los archivos",
+        message: e.message || "Error interno en el servidor",
       });
     }
   };
@@ -89,7 +88,7 @@ export class CommunityController {
     } catch (e: any) {
       return res.status(500).json({
         success: false,
-        message: e.message || "Error al crear la comunidad",
+        message: e.message || "Error interno en el servidor",
       });
     }
   };
@@ -116,9 +115,9 @@ export class CommunityController {
         message: join ? "Te uniste a la comunidad" : "Abandonaste la comunidad",
       });
     } catch (e: any) {
-      return res.status(400).json({
+      return res.status(500).json({
         success: false,
-        message: e.message || "No se pudo unir o abandonar la comunidad",
+        message: e.message || "Error interno en el servidor",
       });
     }
   };
@@ -156,23 +155,25 @@ export class CommunityController {
     const { name } = req.query as { name: string };
 
     if (!name || name.trim() === "") {
-      return res
-        .status(400)
-        .json({ success: false, message: "El parámetro 'name' es requerido" });
+      return res.status(400).json({
+        success: false,
+        message: "El nombre de la comunidad es requerido",
+      });
     }
 
     try {
-      const community = await this.communityService.getByName(name);
+      const exists = await this.communityService.getByName(name.trim());
 
-      if (!community) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Comunidad no encontrada" });
-      }
-
-      res.status(200).json({ success: true, data: community });
+      return res.status(200).json({
+        success: true,
+        available: !exists,
+        message: exists ? "El nombre ya está en uso" : "Nombre disponible",
+      });
     } catch (e: any) {
-      return res.status(400).json({ success: false, message: e.message });
+      return res.status(500).json({
+        success: false,
+        message: e.message || "Error interno en el servidor",
+      });
     }
   };
 
@@ -198,9 +199,9 @@ export class CommunityController {
       }
       return res.status(200).json({ success: true, data: result });
     } catch (e: any) {
-      return res.status(400).json({
+      return res.status(500).json({
         success: false,
-        message: e.message || "No se pudo obtener las comunidades",
+        message: e.message || "Error interno en el servidor",
       });
     }
   };
@@ -209,8 +210,6 @@ export class CommunityController {
   // =========================================================
   getByCategorySkeleton = async (req: Request, res: Response) => {
     const { category_id } = req.params;
-
-    console.log(category_id);
 
     try {
       const tags = await this.tagService.getByCategoryId(Number(category_id));
@@ -243,7 +242,7 @@ export class CommunityController {
     } catch (e: any) {
       return res.status(500).json({
         success: false,
-        message: e.message || "Error al obtener comunidades por tag",
+        message: e.message || "Error interno en el servidor",
       });
     }
   };
@@ -253,14 +252,16 @@ export class CommunityController {
   getByTag = async (req: Request, res: Response) => {
     const { tagId } = req.query;
 
-    console.log(tagId);
     try {
       const communities = await this.communityService.getCommunitiesByTag(
         Number(tagId),
       );
-      res.status(200).json({ success: true, data: communities });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
+      return res.status(200).json({ success: true, data: communities });
+    } catch (e: any) {
+      return res.status(500).json({
+        success: false,
+        message: e.message || "Error interno en el servidor",
+      });
     }
   };
 }

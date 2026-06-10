@@ -141,6 +141,7 @@ export class CommentService {
           },
           _count: { select: { replies: { where: { active: true } } } },
         },
+        
       });
 
       const hasMore = comments.length > size;
@@ -196,6 +197,9 @@ export class CommentService {
         skip,
         take: size + 1,
         include: {
+          reply_to_user: {
+            select: { id: true, name: true, slug: true, avatar_url: true },
+          },
           user: {
             select: { id: true, name: true, slug: true, avatar_url: true },
           },
@@ -254,8 +258,8 @@ export class CommentService {
     post_id: string,
     user_id: string,
     content: string,
-    parent_comment_id?: string | null,
-    reply_to_user_id?: string | null,
+    parent_comment_id: string | null,
+    reply_to_user_id: string | null,
   ) {
     try {
       const result = await prisma.$transaction(async (tx) => {

@@ -16,6 +16,18 @@ import {
   TempTokenPayload,
 } from "@/shared/interfaces/dto/user.dto";
 import { prisma } from "@/core/database/prisma/prisma";
+import multer from "multer";
+
+const upload = multer({
+  limits: { fileSize: 1024 * 1024 * 2 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Tipo de archivo no permitido"));
+    }
+  },
+});
 
 const router = Router();
 
@@ -105,39 +117,45 @@ router.get(
             select: {
               id: true,
               slug: true,
-              name: true, 
+              name: true,
               active: true,
-            } as any
-          }
-        }
+            } as any,
+          },
+        },
       });
 
       if (user.isBusiness) {
-        const hasPendingLocal = workplaces.some(w => !((w as any).local?.active));
+        const hasPendingLocal = workplaces.some(
+          (w) => !(w as any).local?.active,
+        );
         if (hasPendingLocal) {
-          return res.redirect(`${process.env.FRONTEND_URL}/login?error=local_pending`);
+          return res.redirect(
+            `${process.env.FRONTEND_URL}/login?error=local_pending`,
+          );
         }
       }
-      
+
       // ============================================================
       // RESTRICCIÓN DE PERSONAL (STAFF) EN WEB
       // ============================================================
       if (!isMobile) {
-        const hasStaffRole = workplaces.some(w => w.role === 'staff');
-        const hasAdminRole = workplaces.some(w => w.role === 'admin');
+        const hasStaffRole = workplaces.some((w) => w.role === "staff");
+        const hasAdminRole = workplaces.some((w) => w.role === "admin");
         const isOwner = user.isBusiness;
-        const isSuperAdmin = user.role === 'ADMIN';
+        const isSuperAdmin = user.role === "ADMIN";
 
         if (hasStaffRole && !hasAdminRole && !isOwner && !isSuperAdmin) {
-          return res.redirect(`${process.env.FRONTEND_URL}/login?error=staff_restriction`);
+          return res.redirect(
+            `${process.env.FRONTEND_URL}/login?error=staff_restriction`,
+          );
         }
       }
 
-      const workplaceData = workplaces.map((workplace: { role: any; }) => ({
+      const workplaceData = workplaces.map((workplace: { role: any }) => ({
         id: (workplace as any).local.id,
         slug: (workplace as any).local.slug,
         name: (workplace as any).local.name,
-        role: workplace.role
+        role: workplace.role,
       }));
 
       const userData: UserSessionData = {
@@ -177,8 +195,10 @@ router.get(
         return res.redirect(`dualeat://callback?token=${accessToken}`);
       } else {
         if (user.isBusiness) {
-          if (user.subscription_status === "active") {
-            return res.redirect(`${process.env.FRONTEND_URL}/business/dashboard`);
+          if (user.subscription_status?.toLowerCase() === "active") {
+            return res.redirect(
+              `${process.env.FRONTEND_URL}/business/dashboard`,
+            );
           } else {
             return res.redirect(`${process.env.FRONTEND_URL}/business/menu`);
           }
@@ -235,11 +255,26 @@ router.post(
 
 // 3. RUTAS DE USUARIO AUTENTICADO
 // =========================================
+router.post(
+  "/upload",
+  limiter(false),
+  isAuthenticated,
+  upload.fields([
+    { name: "avatar_url", maxCount: 1 }
+  ]),
+  controller.upload.bind(controller),
+);
+
+
 router.get("/me", isAuthenticated, (req, res) => {
   res.json(req.user);
 });
 
-router.put("/me", isAuthenticated, controller.updateProfile.bind(controller));
+router.get("/:user_id", controller.getById.bind(controller));
+
+router.get("/:user_id/search", controller.getUserSearch.bind(controller));
+
+router.put("/me", limiter(false), isAuthenticated, controller.update.bind(controller));
 
 // 4. RUTAS DE LOGOUT
 // =========================================

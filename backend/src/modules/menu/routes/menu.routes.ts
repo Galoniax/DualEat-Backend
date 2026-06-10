@@ -20,7 +20,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!supabaseUrl || !supabaseServiceRoleKey) {
   throw new Error(
-    "Supabase URL or Service Role Key is not defined in environment variables."
+    "Supabase URL or Service Role Key is not defined in environment variables.",
   );
 }
 
@@ -92,7 +92,7 @@ router.post(
   "/local/:localId/menu-upload",
   limiter(false),
   upload.single("menuImage"),
-  controller.uploadMenu
+  controller.uploadMenu,
 );
 
 export default router;

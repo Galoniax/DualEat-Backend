@@ -9,6 +9,9 @@ import { limiter } from "@/core/middlewares/rateLimiter";
 
 import { CommentService } from "../services/comment.service";
 import { CommentController } from "../controllers/comment.controller";
+import { validateBody } from "@/core/middlewares/validation";
+import { createPostSchema } from "../schemas/post.schema";
+import { createCommentSchema } from "../schemas/comment.schema";
 
 const upload = multer({
   limits: { fileSize: 1024 * 1024 * 30 },
@@ -36,9 +39,10 @@ const cController = new CommentController(cService);
 // =========================================================
 router.post(
   "/create",
+  upload.none(),
   limiter(false),
   isAuthenticated,
-  upload.none(),
+  validateBody(createPostSchema),
   controller.create.bind(controller),
 );
 
@@ -50,8 +54,8 @@ router.post(
   isAuthenticated,
   upload.fields([
     { name: "post_images", maxCount: 10 },
-    { name: "recipe_main_image", maxCount: 1 },
-    { name: "recipe_step_images", maxCount: 20 },
+    { name: "main_image", maxCount: 1 },
+    { name: "step_images", maxCount: 20 },
   ]),
   controller.upload.bind(controller),
 );
@@ -65,6 +69,8 @@ router.get(
   controller.getCommunityPosts.bind(controller),
 );
 
+router.patch("/:post_id", isAuthenticated, controller.delete.bind(controller));
+
 // 4. Obtener todos los posts
 // =========================================================
 router.get("/", isAuthenticated, controller.getAll.bind(controller));
@@ -73,7 +79,6 @@ router.get("/", isAuthenticated, controller.getAll.bind(controller));
 // =========================================================
 router.get("/:id", isAuthenticated, controller.getById.bind(controller));
 
-// =========================================================
 // COMENTARIOS
 // =========================================================
 
@@ -97,9 +102,10 @@ router.get(
 // =========================================================
 router.post(
   "/comment",
+  upload.none(),
   limiter(false),
   isAuthenticated,
-  upload.none(),
+  validateBody(createCommentSchema),
   cController.create.bind(cController),
 );
 

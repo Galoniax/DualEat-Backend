@@ -24,6 +24,8 @@ import {
 } from "@/shared/utils/jwt";
 import AuthSessionService from "../services/auth-session.service";
 import { generateUniqueSlug } from "@/shared/utils/sluglify";
+import { optimize } from "@/shared/utils/sharp";
+import { deleteFiles, uploadFiles } from "@/core/config/supabase";
 
 export class AuthController {
   private readonly authSessionService = AuthSessionService.getInstance();
@@ -34,12 +36,7 @@ export class AuthController {
   // =========================================================
   async login(req: Request, res: Response) {
     try {
-      const { email, password, remember, recaptcha, deviceId, platform } = req.body;
-
-      const params = new URLSearchParams();
-
-      params.append("secret", process.env.RECAPTCHA_CLOUDFARE_SECRET_KEY || "");
-      params.append("response", recaptcha);
+      const { email, password, remember, token, deviceId, platform } = req.body;
 
       if (!email || !password) {
         return res.status(400).json({
@@ -57,27 +54,43 @@ export class AuthController {
 
       // 2. VERIFICACIÓN DE SEGURIDAD (RECAPTCHA)
       // ============================================================
-      if (!recaptcha) {
+      if (!token) {
         return res.status(400).json({
           success: false,
-          message: "reCAPTCHA no proporcionado",
+          message: "Token no proporcionado",
         });
       }
 
-      const reCAPTCHA_Response = await axios.post(
-        "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-        params.toString(),
-        {
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-        },
-      );
+      try {
+        const form = new FormData();
+        form.append(
+          "secret",
+          process.env.RECAPTCHA_CLOUDFARE_SECRET_KEY! ||
+            "1x0000000000000000000000000000000AA",
+        );
+        form.append("response", token);
 
-      if (!reCAPTCHA_Response.data.success) {
-        return res.status(403).json({
+        const cfResponse = await fetch(
+          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+          {
+            method: "POST",
+            body: form,
+          },
+        );
+
+        const cfData = await cfResponse.json();
+
+        if (!cfData.success) {
+          return res.status(403).json({
+            success: false,
+            message: "Fallo en la verificación de seguridad reCAPTCHA.",
+          });
+        }
+      } catch (e) {
+        return res.status(500).json({
           success: false,
-          message: "Fallo en la verificación reCAPTCHA. Inténtalo de nuevo.",
+          message:
+            "Error de conexión con el servidor de verificación. Inténtalo más tarde.",
         });
       }
 
@@ -107,37 +120,45 @@ export class AuthController {
       // ============================================================
       // 4. RESTRICCIÓN DE PERSONAL (STAFF) EN WEB
       // ============================================================
-      if (platform !== 'mobile') {
+      if (platform !== "mobile") {
         const localUserAssociations = await prisma.localUser.findMany({
-          where: { user_id: user.id }
+          where: { user_id: user.id },
         });
 
-        const hasStaffRole = localUserAssociations.some(lu => lu.role === 'staff');
-        const hasAdminRole = localUserAssociations.some(lu => lu.role === 'admin');
+        const hasStaffRole = localUserAssociations.some(
+          (lu) => lu.role === "staff",
+        );
+        const hasAdminRole = localUserAssociations.some(
+          (lu) => lu.role === "admin",
+        );
         const isOwner = (user as any).is_business;
-        const isSuperAdmin = user.role === 'ADMIN';
+        const isSuperAdmin = user.role === "ADMIN";
 
         if (hasStaffRole && !hasAdminRole && !isOwner && !isSuperAdmin) {
           return res.status(403).json({
             success: false,
-            message: "Esta cuenta está asignada como personal de un local y solo puede acceder desde la aplicación móvil."
+            message:
+              "Esta cuenta está asignada como personal de un local y solo puede acceder desde la aplicación móvil.",
           });
         }
       }
 
       if (user.is_business) {
         const userLocals = await prisma.localUser.findMany({
-            where: { user_id: user.id },
-            include: { local: true }
+          where: { user_id: user.id },
+          include: { local: true },
         });
-        
-        const hasPendingLocal = userLocals.some(lw => (lw.local as any) && !(lw.local as any).active);
-        
+
+        const hasPendingLocal = userLocals.some(
+          (lw) => (lw.local as any) && !(lw.local as any).active,
+        );
+
         if (hasPendingLocal) {
-            return res.status(403).json({
-                success: false,
-                message: "Su comercio se encuentra en revisión. Por favor espere a que sea aprobado por un administrador para poder iniciar sesión."
-            });
+          return res.status(403).json({
+            success: false,
+            message:
+              "Su comercio se encuentra en revisión. Por favor espere a que sea aprobado por un administrador para poder iniciar sesión.",
+          });
         }
       }
 
@@ -240,11 +261,8 @@ export class AuthController {
 
       // 3. PROCESAMIENTO Y TOKEN TEMPORAL
       // ============================================================
-
-      // Hash de la contraseña
       const hashedPassword = await hashPassword(password);
 
-      // Crear token temporal
       const ttp: TempTokenPayload = {
         email,
         password_hash: hashedPassword,
@@ -258,10 +276,9 @@ export class AuthController {
       return res.status(200).json({
         success: true,
         message: "Credenciales válidas. Continuando a preferencias.",
-        next_step: `/?tempToken=${tempToken}`,
+        token: tempToken,
       });
-    } catch (error) {
-      console.error("Register Error:", error);
+    } catch (e: any) {
       return res.status(500).json({
         success: false,
         message: "Error interno del servidor",
@@ -394,7 +411,14 @@ export class AuthController {
   // =========================================================
   async completeLocalProfile(req: Request, res: Response) {
     try {
-      const { tempToken, userName, localName, localAddress, localDescription, localType } = req.body;
+      const {
+        tempToken,
+        userName,
+        localName,
+        localAddress,
+        localDescription,
+        localType,
+      } = req.body;
 
       if (!tempToken) {
         return res.status(401).json({
@@ -409,13 +433,19 @@ export class AuthController {
       } catch (err) {
         return res.status(401).json({
           success: false,
-          message: "La sesión de registro ha expirado. Por favor inicia de nuevo.",
+          message:
+            "La sesión de registro ha expirado. Por favor inicia de nuevo.",
         });
       }
 
-      const DEFAULT_AVATAR = "https://ohhvldagwoycuifwhgtc.supabase.co/storage/v1/object/public/assets/DefaultProfile.png";
-      const userSlugString = String(await generateUniqueSlug(userName.trim(), prisma.user));
-      const localSlugString = String(await generateUniqueSlug(localName.trim(), prisma.local));
+      const DEFAULT_AVATAR =
+        "https://ohhvldagwoycuifwhgtc.supabase.co/storage/v1/object/public/assets/DefaultProfile.png";
+      const userSlugString = String(
+        await generateUniqueSlug(userName.trim(), prisma.user),
+      );
+      const localSlugString = String(
+        await generateUniqueSlug(localName.trim(), prisma.local),
+      );
 
       // START TRANSACTION
       const result = await prisma.$transaction(async (tx) => {
@@ -430,7 +460,7 @@ export class AuthController {
             provider: tempData.provider || "local",
             is_business: true,
             role: "USER",
-          }
+          },
         });
 
         // 2. Create Local
@@ -441,10 +471,11 @@ export class AuthController {
             address: localAddress.trim(),
             description: localDescription?.trim() || null,
             type_local: localType?.trim() || "Restaurante",
-            image_url: "https://ohhvldagwoycuifwhgtc.supabase.co/storage/v1/object/public/assets/DefaultLocal.webp", 
-            latitude: 0, 
+            image_url:
+              "https://ohhvldagwoycuifwhgtc.supabase.co/storage/v1/object/public/assets/DefaultLocal.webp",
+            latitude: 0,
             longitude: 0,
-          }
+          },
         });
 
         // 3. Create LocalUser (link)
@@ -452,20 +483,17 @@ export class AuthController {
           data: {
             user_id: user.id,
             local_id: local.id,
-            role: "admin", 
-          }
+            role: "admin",
+          },
         });
 
         return { user, local };
       });
 
-      return res
-        .status(201)
-        .json({
-          success: true,
-          message: "Registro de local completado exitosamente y en revisión",
-        });
-
+      return res.status(201).json({
+        success: true,
+        message: "Registro de local completado exitosamente y en revisión",
+      });
     } catch (e) {
       console.error("Error al completar el perfil de local:", e);
       return res.status(500).json({
@@ -526,63 +554,191 @@ export class AuthController {
     }
   }
 
+  // OBTENER USUARIO POR ID
   // =========================================================
-  // ACTUALIZAR PERFIL (STAFF / USER)
-  // =========================================================
-  async updateProfile(req: Request, res: Response) {
+  async getById(req: Request, res: Response) {
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) {
-        return res.status(401).json({ success: false, message: "No autorizado" });
+      const { user_id } = req.params;
+
+      if (!user_id) {
+        return res.status(400).json({
+          success: false,
+          message: "ID de usuario no proporcionado",
+        });
       }
 
-      const { name, currentPassword, newPassword } = req.body;
+      const user = await this.userService.getById(String(user_id));
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "Usuario no encontrado",
+        });
+      }
+      return res.status(200).json({
+        success: true,
+        data: user,
+      });
+    } catch (e: any) {
+      return res.status(500).json({
+        success: false,
+        message: e.message || "Error interno en el servidor",
+      });
+    }
+  }
+
+  // OBTENER POSTS, RECETAS, COMMENTARIOS, RESEÑAS DE UN USUARIO
+  // =========================================================
+  async getUserSearch(req: Request, res: Response) {
+    const { user_id } = req.params;
+
+    const { query, tab, page } = req.query as {
+      query?: string;
+      tab: "posts" | "recipes" | "comments" | "reviews";
+      page: string;
+    };
+
+    if (typeof page !== "string" || isNaN(Number(page))) {
+      return res.status(400).json({
+        success: false,
+        message: "El número de página no es válido.",
+      });
+    }
+
+    if (!tab || !user_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Datos invalidos",
+      });
+    }
+
+    const searchQuery = query ? String(query) : "";
+
+    const result = await this.userService.getUserSearch(
+      searchQuery,
+      tab,
+      Number(page),
+      String(user_id),
+    );
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  }
+
+  // ACTUALIZAR PERFIL (STAFF / USER)
+  // =========================================================
+  async update(req: Request, res: Response) {
+    const { name, avatar_url, currentPassword, newPassword } = req.body;
+
+    const user_id = (req as any).user?.id || req.body.user_id;
+    try {
+      if (!user_id) {
+        return res
+          .status(401)
+          .json({ success: false, message: "No autorizado" });
+      }
+
       const updateData: any = {};
 
-      if (name) {
+      if (name !== undefined) {
         updateData.name = name;
       }
 
-      // Si quiere cambiar contraseña, verificamos la actual
+      if (avatar_url !== undefined) {
+        updateData.avatar_url = avatar_url;
+      }
+
       if (newPassword) {
-        if (!currentPassword) {
-          return res.status(400).json({ success: false, message: "Debes ingresar tu contraseña actual para establecer una nueva" });
-        }
-
-        const user = await this.userService.getById(userId);
+        const user = await this.userService.getById(user_id);
         if (!user || !user.password_hash) {
-          return res.status(400).json({ success: false, message: "No se puede actualizar la contraseña de esta cuenta" });
+          return res.status(400).json({
+            success: false,
+            message: "No se puede actualizar la contraseña de esta cuenta",
+          });
         }
 
-        const passwordMatch = await comparePassword(currentPassword, user.password_hash);
+        const passwordMatch = await comparePassword(
+          currentPassword!,
+          user.password_hash,
+        );
         if (!passwordMatch) {
-          return res.status(400).json({ success: false, message: "La contraseña actual es incorrecta" });
+          return res.status(400).json({
+            success: false,
+            message: "La contraseña actual es incorrecta",
+          });
         }
-
         updateData.password_hash = await hashPassword(newPassword);
       }
-
-      if (Object.keys(updateData).length === 0) {
-        return res.status(400).json({ success: false, message: "No hay datos para actualizar" });
-      }
-
-      const updatedUser = await this.userService.update(userId, updateData);
-
-      // Limpiar data sensible antes de devolver
+      const updatedUser = await this.userService.update(user_id, updateData);
       const { password_hash, reset_code, ...safeUser } = updatedUser;
 
       return res.status(200).json({
         success: true,
         message: "Perfil actualizado correctamente",
-        data: safeUser
+        data: safeUser,
       });
-
-    } catch (error: any) {
-      return res.status(500).json({
+    } catch (e: any) {
+      if (avatar_url !== undefined) {
+        deleteFiles([avatar_url]).catch((err) =>
+          console.error("Error crítico al borrar imágenes huérfanas:", err),
+        );
+      }
+      return res.status(e.status || 500).json({
         success: false,
-        message: "Error al actualizar el perfil",
-        error: error.message,
+        message: e.message || "Error interno del servidor",
       });
     }
   }
+
+  // SUBIR IMÁGENES
+  // =========================================================
+  upload = async (req: Request, res: Response) => {
+    const user_id = (req as any).user?.id || req.body.user_id;
+
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+
+    if (!files || Object.keys(files).length === 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "No se recibieron archivos." });
+    }
+
+    try {
+      const user = await this.userService.getById(user_id);
+      let url: string = "";
+
+      const promises: Promise<any>[] = [];
+
+      if (user?.avatar_url && !user.avatar_url.includes("DefaultProfile.png")) {
+        promises.push(
+          deleteFiles([user.avatar_url]).catch((err) =>
+            console.error("Error crítico al borrar imágenes huérfanas:", err),
+          ),
+        );
+      }
+
+      if (files["avatar_url"] && files["avatar_url"].length > 0) {
+        promises.push(
+          (async () => {
+            const optimized = await optimize(files["avatar_url"]);
+            url = (await uploadFiles(optimized[0], "profile", "")) as string;
+          })(),
+        );
+      }
+
+      await Promise.all(promises);
+
+      return res.status(200).json({
+        success: true,
+        urls: url,
+      });
+    } catch (e: any) {
+      return res.status(e.status || 500).json({
+        success: false,
+        message: e.message || "Error interno al subir las imágenes.",
+      });
+    }
+  };
 }

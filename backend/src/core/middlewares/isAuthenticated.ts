@@ -10,33 +10,27 @@ export const isAuthenticated = async (
   res: Response,
   next: NextFunction,
 ) => {
-  let token = req.cookies.accessToken;
-
-  if (!token && req.headers.authorization) {
-    const header = req.headers.authorization;
-
-    if (header.startsWith("Bearer ")) {
-      token = header.substring(7);
-    }
-  }
-
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: "Token no encontrado",
-    });
-  }
-
   try {
+    let token = req.cookies.accessToken;
+
+    if (!token && req.headers.authorization) {
+      const header = req.headers.authorization;
+
+      if (header.startsWith("Bearer ")) {
+        token = header.substring(7);
+      }
+    }
+
+    if (!token) {
+      throw new Error("Token no encontrado");
+    }
+
     // 1. Verificar JWT
     const payload = verifyAccessToken(token);
 
     // Verificar que sea un access token
     if (payload.typ !== "access") {
-      return res.status(401).json({
-        success: false,
-        message: "Tipo de token inválido",
-      });
+      throw new Error("Tipo de token inválido");
     }
 
     // 2. Obtener datos de sesión de Redis
@@ -47,21 +41,14 @@ export const isAuthenticated = async (
     );
 
     if (!userData) {
-      console.log("Sesión expirada");
-      return res.status(401).clearCookie("accessToken").json({
-        success: false,
-        message: "Sesión expirada",
-      });
+      throw new Error("Sesión expirada");
     }
 
     // 3. Verificar que el usuario siga activo
     if (!userData.active) {
       await authSessionService.deleteSession(payload.ses);
 
-      return res.status(401).clearCookie("accessToken").json({
-        success: false,
-        message: "Cuenta desactivada",
-      });
+      throw new Error("Cuenta desactivada");
     }
 
     // 4. Adjuntar datos de usuario al request
@@ -72,10 +59,12 @@ export const isAuthenticated = async (
 
     next();
   } catch (e: any) {
-    console.log("Token inválido o expirado");
-    return res.status(401).clearCookie("accessToken").json({
-      success: false,
-      message: "Token inválido o expirado",
-    });
+    return res
+      .status(401)
+      .clearCookie("accessToken")
+      .json({
+        success: false,
+        message: e.message || "Token inválido o expirado",
+      });
   }
 };

@@ -12,7 +12,6 @@ import { optimize } from "@/shared/utils/sharp";
 export class PostController {
   constructor(private postService: PostService) {}
 
-
   // OBTENER TODOS LOS POSTS
   // =========================================================
   getAll = async (req: Request, res: Response) => {
@@ -32,10 +31,10 @@ export class PostController {
       }
 
       return res.status(200).json({ success: true, ...result });
-    } catch (e) {
+    } catch (e: any) {
       return res
-        .status(500)
-        .json({ success: false, message: "Error interno del servidor" });
+        .status(e.status || 500)
+        .json({ success: false, message: e.message || "Error interno del servidor" });
     }
   };
 
@@ -77,9 +76,9 @@ export class PostController {
 
       return res.status(200).json({ success: true, ...posts });
     } catch (e: any) {
-      return res.status(400).json({
+      return res.status(e.status || 500).json({
         success: false,
-        message: e.message || "Error al obtener los posts",
+        message: e.message || "Error interno del servidor",
       });
     }
   };
@@ -105,10 +104,10 @@ export class PostController {
       }
 
       return res.status(200).json({ success: true, data: post });
-    } catch (e) {
+    } catch (e: any) {
       return res
-        .status(500)
-        .json({ success: false, message: "Error interno del servidor" });
+        .status(e.status || 500)
+        .json({ success: false, message: e.message || "Error interno del servidor" });
     }
   };
 
@@ -119,60 +118,13 @@ export class PostController {
 
     const user_id = (req as any).user?.id || req.body.user_id;
 
-    let Post: PostDTO;
-    let Recipe: RecipeDTO | undefined;
-
-    const sanitize = sanitizeHtml(post.content, {
-      allowedTags: ["b", "em", "strong", "p", "h1", "h2", "ul", "ol", "li"],
-    });
-
     try {
-      Post = {
-        title: String(post.title).trim(),
-        content: sanitize,
-        image_urls: post.image_urls,
-        user_id: String(user_id),
-        community_id: String(post.community_id),
-      };
-
-      if (recipe) {
-        const steps = recipe.steps?.map((step: any) => ({
-          step_number: parseInt(step.step_number, 10) || 0,
-          description: step.description,
-          image_url: step.image_url || null,
-          estimated_time: step.estimated_time
-            ? parseInt(step.estimated_time, 10)
-            : null,
-        }));
-
-        const ingredients = recipe.ingredients?.map((ingredient: any) => ({
-          ingredient_id: parseInt(ingredient.ingredient_id, 10) || 0,
-          quantity: String(ingredient.quantity).trim(),
-          unit: ingredient.unit,
-          notes: ingredient.notes || null,
-        }));
-
-        Recipe = {
-          name: String(recipe.name).trim(),
-          description: String(recipe.description).trim(),
-          main_image: recipe.main_image,
-          total_time: Number(recipe.total_time) || 0,
-          user_id: String(user_id),
-          ingredients: ingredients,
-          steps: steps,
-        };
-      }
-
-      const result = await this.postService.create(Post, Recipe);
-
-      if (!result) {
-        throw new Error("Error al crear el post");
-      }
+      const result = await this.postService.create(user_id, post, recipe);
 
       return res.status(201).json({
         success: true,
         ...result,
-        message: Recipe
+        message: recipe
           ? "Post y receta creados exitosamente"
           : "Post creado exitosamente",
       });
@@ -197,9 +149,45 @@ export class PostController {
         );
       }
 
-      return res.status(500).json({
+      return res.status(e.status || 500).json({
         success: false,
-        message: "Error interno del servidor. No se pudo crear la publicación.",
+        message: e.message || "Error interno del servidor",
+      });
+    }
+  };
+
+  // ELIMINAR POST
+  // =========================================================
+  delete = async (req: Request, res: Response) => {
+    const { post_id } = req.params as { post_id: string };
+
+    const user_id = (req as any).user?.id || req.body.user_id;
+
+    if (!post_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Datos no validos",
+      });
+    }
+
+    try {
+      const result = await this.postService.delete(
+        String(post_id),
+        String(user_id),
+      );
+
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          message: "Post no encontrado",
+        });
+      }
+
+      return res.status(200).json({ success: true, data: result });
+    } catch (e: any) {
+      return res.status(e.status || 500).json({
+        success: false,
+        message: e.message || "Error interno del servidor",
       });
     }
   };
@@ -231,8 +219,8 @@ export class PostController {
         uploadedUrls.post_images = Array.isArray(urls) ? urls : [urls];
       }
 
-      if (files["recipe_main_image"] && files["recipe_main_image"].length > 0) {
-        const optimized = await optimize(files["recipe_main_image"]);
+      if (files["main_image"] && files["main_image"].length > 0) {
+        const optimized = await optimize(files["main_image"]);
 
         const url = await uploadFiles(optimized[0], "recipes", "recipe_main");
         uploadedUrls.recipe_main_image = url as string;

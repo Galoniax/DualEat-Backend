@@ -5,7 +5,15 @@ import { RecipeDTO } from "@/shared/interfaces/dto/recipe.dto";
 
 import { generateSlug } from "@/shared/utils/sluglify";
 import { getSocketServer } from "@/core/config/socket.config";
-import { Post, Recipe, Community, ContentType, Vote, VoteType } from "@prisma/client";
+import {
+  Post,
+  Recipe,
+  Community,
+  ContentType,
+  Vote,
+  VoteType,
+  Prisma,
+} from "@prisma/client";
 
 export class PostService {
   private async sendPostNotification(
@@ -344,64 +352,112 @@ export class PostService {
 
   // CREAR POST
   // =========================================================
-  async create(post: PostDTO, recipe?: RecipeDTO) {
+  async create(user_id: string, post: PostDTO, recipe?: RecipeDTO) {
     try {
-      const payload: any = {
+      const data: Prisma.PostCreateInput = {
         title: post.title,
         slug: generateSlug(post.title),
         content: post.content,
         image_urls: post.image_urls,
-        user_id: post.user_id,
-        community_id: post.community_id,
+
+        user: { connect: { id: user_id } },
+        community: { connect: { id: post.community_id } },
       };
 
       if (recipe) {
-        payload.recipe = {
+        data.recipe = {
           create: {
             name: recipe.name,
             slug: generateSlug(recipe.name),
             description: recipe.description,
-            main_image: recipe.main_image,
             total_time: recipe.total_time,
-            user_id: recipe.user_id,
-            ingredients: {
-              create: recipe.ingredients,
-            },
+            main_image: recipe.main_image,
+            user: { connect: { id: user_id } },
             steps: {
-              create: recipe.steps,
+              create: recipe.steps?.map((step) => ({
+                step_number: step.step_number,
+                description: step.description,
+                image_url: step.image_url,
+                estimated_time: step.estimated_time ?? 0,
+              })),
+            },
+            ingredients: {
+              create: recipe.ingredients?.map((ing) => ({
+                ingredient_id: ing.ingredient_id,
+                quantity: ing.quantity,
+                unit: ing.unit,
+                notes: ing.notes,
+              })),
             },
           },
         };
       }
 
-      // CREACIÓN DE POST & RECETA
-      const postCreated = await prisma.post.create({
-        data: payload,
+      const result = await prisma.post.create({
+        data: data,
         include: {
           community: true,
-          recipe: !!recipe,
+          recipe: {
+            include: {
+              steps: true,
+              ingredients: true,
+            },
+          },
         },
       });
 
-      if (recipe) {
-        const result = postCreated as any;
-        const recipe = result.recipe;
+      return result;
+    } catch (e) {
+      throw e;
+    }
+  }
 
-        delete result.recipe;
+  // ELIMINAR POST
+  // =========================================================
+  async delete(post_id: string, user_id: string) {
+    try {
+      const post = await prisma.post.findUnique({
+        where: { id: post_id },
+        include: {
+          community: true,
+        },
+      });
 
-        return {
-          post: result,
-          recipe: recipe,
-        };
+      if (!post) {
+        const e = new Error("Post no encontrado") as any;
+        e.status = 404;
+        throw e;
       }
 
-      return {
-        post: postCreated,
-        recipe: null,
-      };
+      const isPostCreator = post.user_id === user_id;
+      const isCommunityCreator = post.community?.creator_id === user_id;
+
+      const member = await prisma.communityMember.findUnique({
+        where: {
+          user_id_community_id: {
+            user_id: user_id,
+            community_id: post.community_id,
+          },
+        },
+      });
+      const isModerator = member?.is_moderator || false;
+
+      if (!isPostCreator && !isCommunityCreator && !isModerator) {
+        const e = new Error(
+          "No tienes permisos para eliminar este post",
+        ) as any;
+        e.status = 403;
+        throw e;
+      }
+
+      await prisma.post.update({
+        where: { id: post_id },
+        data: { active: false },
+      });
+
+      return post;
     } catch (e) {
-      console.error("Error en Prisma:", e);
-      return null;
+      throw e;
     }
   }
 }

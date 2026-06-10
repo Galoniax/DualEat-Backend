@@ -5,6 +5,8 @@ import { CommentDTO } from "@/shared/interfaces/dto/post.dto";
 export class CommentController {
   constructor(private commentService: CommentService) {}
 
+  // NOTIFICAR AL USUARIO DEL POST + COMENTARIO SI HAY
+
   // CREAR COMENTARIO
   // =========================================================
   create = async (req: Request, res: Response) => {
@@ -12,20 +14,13 @@ export class CommentController {
 
     const user_id = (req as any).user?.id || req.body.user_id;
 
-    if (!comment.post_id || !comment.content) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Faltan datos requeridos" });
-    }
-
     try {
       const result = await this.commentService.create(
-        String(comment.post_id),
+        comment.post_id,
         String(user_id),
-        String(comment.content),
-
-        comment.parent_comment_id ? String(comment.parent_comment_id) : null,
-        comment.reply_to_user_id ? String(comment.reply_to_user_id) : null,
+        comment.content,
+        comment.parent_comment_id || null,
+        comment.reply_to_user_id || null,
       );
 
       if (!result) {
@@ -37,7 +32,7 @@ export class CommentController {
       return res.status(201).json({ success: true, data: result });
     } catch (e: any) {
       return res
-        .status(500)
+        .status(e.status || 500)
         .json({
           success: false,
           message: e.message || "Error interno del servidor",
