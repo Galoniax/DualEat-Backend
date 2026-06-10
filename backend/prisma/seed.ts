@@ -275,22 +275,44 @@ async function main() {
   try {
     // ---- 1. Siembra de la tabla Ingredient ----
     const ingredientsFileContent = readFileSync(ingredientsFilePath, "utf-8");
-    const ingredientNames = ingredientsFileContent
+    const ingredientsToCreate = ingredientsFileContent
       .split("\n")
-      .map((line: any) => line.trim().toLowerCase())
-      .filter((line: any) => line.length > 0);
+      .map((line: any) => line.trim())
+      .filter((line: any) => line.length > 0)
+      .map((line: any) => {
+        try {
+          const parsed = JSON.parse(line);
+          return {
+            name: parsed.name.trim().toLowerCase(),
+            calories: Number(parsed.calories ?? 0),
+            proteins: Number(parsed.proteins ?? 0),
+            carbs: Number(parsed.carbs ?? 0),
+            fat: Number(parsed.fat ?? 0),
+          };
+        } catch (error) {
+          console.error(
+            `Error al parsear la línea: "${line}". Asegúrate de que sea un JSON válido.`,
+          );
+          return null;
+        }
+      })
 
-    const ingredientsToCreate = ingredientNames.map((name: string) => ({
-      name,
-    }));
+      .filter(
+        (
+          item: any,
+        ): item is {
+          name: string;
+          calories: number;
+          proteins: number;
+          carbs: number;
+          fat: number;
+        } => item !== null,
+      );
 
     await prisma.ingredient.createMany({
       data: ingredientsToCreate,
       skipDuplicates: true,
     });
-    console.log(
-      `${ingredientsToCreate.length} ingredientes han sido insertados.`,
-    );
 
     // ---- 2. Siembra de FoodCategory ----
     for (const category of foodCategories) {
@@ -382,7 +404,8 @@ async function main() {
         name: "Local Cafe Palermo",
         description: "Cafe de especialidad.",
         address: "Uriarte 2000",
-        image_url: "https://cdn-ikpiegf.nitrocdn.com/FsBdHZLBmVMMWfdGbyWEiYuDVxpHBooT/assets/images/optimized/rev-ff89652/avocaty.io/wp-content/uploads/2025/03/tipos-cafeterias.jpg",
+        image_url:
+          "https://cdn-ikpiegf.nitrocdn.com/FsBdHZLBmVMMWfdGbyWEiYuDVxpHBooT/assets/images/optimized/rev-ff89652/avocaty.io/wp-content/uploads/2025/03/tipos-cafeterias.jpg",
         type_local: "Cafetería",
         latitude: -34.690615,
         longitude: -58.332808,
@@ -391,7 +414,8 @@ async function main() {
         name: "Sushi Bar",
         description: "Sushi Bar especializado en pescados",
         address: "Av. Libertador 5000",
-        image_url: "https://media-cdn.tripadvisor.com/media/photo-m/1280/2a/7c/09/82/sushi-bar-setting.jpg",
+        image_url:
+          "https://media-cdn.tripadvisor.com/media/photo-m/1280/2a/7c/09/82/sushi-bar-setting.jpg",
         type_local: "Sushi",
         latitude: -34.688737,
         longitude: -58.334233,

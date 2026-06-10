@@ -566,7 +566,7 @@ model RecipeStep {
   step_number    Int
   description    String
   image_url      String?
-  estimated_time Int?
+  estimated_time Int     @default(0)
 
   @@unique([recipe_id, step_number])
 }
@@ -632,9 +632,14 @@ model PostComment {
 // ========================================================
 
 model Ingredient {
-  id                 Int                @id @default(autoincrement())
-  name               String             @unique
-  description        String?
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String?
+  calories    Int     @default(0)
+  proteins    Float   @default(0.0)
+  carbs       Float   @default(0.0)
+  fat         Float   @default(0.0)
+
   recipe_ingredients RecipeIngredient[]
 }
 
@@ -713,16 +718,16 @@ model Subscription {
 // ========================================================
 
 model SupportTicket {
-  id         String       @id @default(nanoid(10)) @map("id")
-  local_id   String
-  type       TicketType
-  status     TicketStatus @default(OPEN)
-  
-  created_at DateTime     @default(now())
-  updated_at DateTime     @updatedAt
+  id       String       @id @default(nanoid(10)) @map("id")
+  local_id String
+  type     TicketType
+  status   TicketStatus @default(OPEN)
 
-  local      Local            @relation(fields: [local_id], references: [id])
-  messages   SupportMessage[]
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  local    Local            @relation(fields: [local_id], references: [id])
+  messages SupportMessage[]
 
   @@index([local_id])
   @@index([status])
@@ -735,11 +740,11 @@ model SupportMessage {
   sender_role SupportSenderRole
   content     String
   read        Boolean           @default(false)
-  
-  created_at  DateTime          @default(now())
 
-  ticket      SupportTicket     @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
-  sender      User              @relation(fields: [sender_id], references: [id])
+  created_at DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  sender User          @relation(fields: [sender_id], references: [id])
 
   @@index([ticket_id])
   @@index([sender_id])
