@@ -9,11 +9,10 @@ import {
 import { Role } from "@prisma/client";
 import crypto from "crypto";
 
-import AuthSessionService from "../../modules/auth/services/auth-session.service";
+import AuthSessionService from "@/modules/auth/services/auth-session.service";
 
 const authSessionService = AuthSessionService.getInstance();
 
-// ==================================
 // Funciones auxiliares para el JWT
 // ==================================
 function hashUserId(userId: string): string {
@@ -40,40 +39,47 @@ function encodeProvider(provider: string): string {
   return providerMap[provider] || "l";
 }
 
-// ==================================
 // Creación de tokens seguros y temporales (JWT)
 // ==================================
 export async function createSecureToken(
-  u: UserSessionData, // Datos del usuario
+  u: Pick<
+    UserSessionData,
+    "id" | "role" | "provider" | "deviceId" | "loginAt" | "lastActivity"
+  >,
   r: boolean, // Remember me
   d: string, // Device ID
 ): Promise<string> {
-  let ttlSeconds = 24 * 60 * 60;
+  let ttlSeconds: number;
 
-  if (r) {
-    ttlSeconds = 14 * 24 * 60 * 60;
-  } else {
-    ttlSeconds = 24 * 60 * 60;
+  try {
+    if (r) ttlSeconds = 7 * 24 * 60 * 60;
+    else ttlSeconds = 1 * 24 * 60 * 60;
+
+    // Crear sesión en Redis
+    const sessionId = await authSessionService.createSession(u, d, ttlSeconds);
+
+    if (!sessionId) {
+      throw new Error("Error al crear la sesión");
+    }
+
+    const payload: SecureTokenPayload = {
+      sub: hashUserId(u.id),
+      rol: encodeRole(u.role),
+      prv: encodeProvider(u.provider),
+      rem: r,
+      dev: d,
+      ses: sessionId,
+      typ: "access",
+    };
+
+    return jwt.sign(payload, SECRET_KEY, {
+      algorithm: "HS256",
+      expiresIn: r ? "7d" : "1d",
+      jwtid: crypto.randomUUID(),
+    });
+  } catch (e: any) {
+    throw e;
   }
-
-  // Crear sesión en Redis (Con el nuevo TTL)
-  const sessionId = await authSessionService.createSession(u, d, ttlSeconds);
-
-  const payload: SecureTokenPayload = {
-    sub: hashUserId(u.id),
-    rol: encodeRole(u.role),
-    prv: encodeProvider(u.provider),
-    rem: r,
-    dev: d,
-    ses: sessionId,
-    typ: "access",
-  };
-
-  return jwt.sign(payload, SECRET_KEY, {
-    algorithm: "HS256",
-    expiresIn: r ? "14d" : "1d",
-    jwtid: crypto.randomUUID(),
-  });
 }
 
 export function createTempToken(payload: TempTokenPayload): string {
@@ -84,7 +90,6 @@ export function createTempToken(payload: TempTokenPayload): string {
   });
 }
 
-// ==================================
 // Verificación de tokens
 // ==================================
 export function verifyAccessToken(

@@ -19,9 +19,13 @@ export class AuthSessionService {
     return AuthSessionService.instance;
   }
 
-  // 1. CREAR SESIÓN
+  // CREAR SESIÓN
+  // =========================================================
   async createSession(
-    u: Omit<UserSessionData, "loginAt" | "lastActivity">,
+    u: Pick<
+      UserSessionData,
+      "id" | "role" | "provider" | "deviceId" | "loginAt" | "lastActivity"
+    >,
     d: string, // Device ID
     ttl: number,
   ): Promise<string> {
@@ -55,8 +59,10 @@ export class AuthSessionService {
 
     const sessionKey = `${this.SESSION_PREFIX}${sessionId}`;
 
-    const sessionData: UserSessionData = {
-      ...u,
+    const sessionData = {
+      id: u.id,
+      role: u.role,
+      provider: u.provider,
       loginAt: new Date(),
       lastActivity: new Date(),
       deviceId: d,
@@ -74,55 +80,51 @@ export class AuthSessionService {
     return sessionId;
   }
 
-  // 2. OBTENER SESIÓN
+  // OBTENER SESIÓN
+  // =========================================================
   async getSession(
     s: string, // Session ID
     d: string, // Device ID
     r: boolean,
-  ): Promise<UserSessionData | null> {
+  ): Promise<any | null> {
     try {
       const sessionKey = `${this.SESSION_PREFIX}${s}`;
 
       let ttl = 24 * 60 * 60;
 
-      if (r) ttl = 14 * 24 * 60 * 60;
+      if (r) ttl = 7 * 24 * 60 * 60;
       else ttl = 24 * 60 * 60;
 
-      // Obtener datos crudos
       const data = await this.sessionService.get(sessionKey);
       if (!data) return null;
 
-      const sessionData: UserSessionData = JSON.parse(data);
+      const sessionData = JSON.parse(data);
 
       if (sessionData.deviceId !== d) {
-        // Eliminar sesión comprometida
         await this.sessionService.delete(sessionKey);
         return null;
       }
-
-      // Actualizar actividad
       sessionData.lastActivity = new Date();
 
-      // Actualizar datos
       await this.sessionService.set(
         sessionKey,
         JSON.stringify(sessionData),
         ttl,
       );
 
-      // Renovar el TTL del índice y session
       await this.sessionService.expire(`user-sessions:${sessionData.id}`, ttl);
 
       await this.sessionService.expire(sessionKey, ttl);
 
       return sessionData;
-    } catch (error) {
-      console.error("Error obteniendo sesión:", error);
+    } catch (e: any) {
+      console.error("Error obteniendo sesión:", e);
       return null;
     }
   }
 
-  // 3. ELIMINAR SESIÓN
+  // ELIMINAR SESIÓN
+  // =========================================================
   async deleteSession(
     s: string, // Session ID
   ): Promise<void> {
@@ -147,15 +149,16 @@ export class AuthSessionService {
       await this.sessionService.delete(sessionKey);
 
       console.log(`Sesión eliminada: ${sessionKey}`);
-    } catch (e) {
-      console.error("Error eliminando sesión:", e);
+    } catch (e: any) {
+      console.error("Error de sesión:", e);
     }
   }
 
-  // 4. REVOCA TODAS LAS SESIONES DE UN USUARIO
-  async revokeAllUserSessions(userId: string): Promise<void> {
+  // REVOCA TODAS LAS SESIONES DE UN USUARIO
+  // =========================================================
+  async revokeAllUserSessions(user_id: string): Promise<void> {
     try {
-      const userIndexKey = `user-sessions:${userId}`;
+      const userIndexKey = `user-sessions:${user_id}`;
 
       // 1. Obtener todos los sessionIds activos de este usuario
       const allSes = await this.sessionService.hGetAll(userIndexKey);
@@ -175,8 +178,8 @@ export class AuthSessionService {
       // 3. Borrar el índice completo del usuario
       await this.sessionService.delete(userIndexKey);
 
-      console.log(`Revocación total completada para usuario ${userId}`);
-    } catch (e) {
+      console.log(`Revocación total completada para usuario ${user_id}`);
+    } catch (e: any) {
       console.error("Error en revocación masiva:", e);
     }
   }

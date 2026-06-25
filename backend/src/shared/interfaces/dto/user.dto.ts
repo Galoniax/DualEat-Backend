@@ -1,4 +1,5 @@
-import { LocalUserRole, Role } from "@prisma/client";
+import { LocalUserRole, NotificationFrequency, Role } from "@prisma/client";
+
 
 // Datos de sesión del usuario almacenados en Redis
 export interface UserSessionData {
@@ -14,11 +15,11 @@ export interface UserSessionData {
   trial_ends_at: Date | null;
   avatar_url: string | null;
   verified: boolean;
-  
+  notificationsPref: NotificationFrequency;
   workplaces?: Workplace[]; 
 
-  loginAt: Date;
-  lastActivity: Date;
+  loginAt?: Date;
+  lastActivity?: Date;
   deviceId?: string;
 }
 

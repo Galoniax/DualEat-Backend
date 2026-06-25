@@ -26,23 +26,21 @@ export class UserService {
           },
         });
 
-        // --- CAMBIO AQUÍ: Usar food_category_id para foodPreferences ---
         if (userData.foodPreferences?.length) {
           await tx.userPreference.createMany({
             data: userData.foodPreferences.map((foodId) => ({
               user_id: user.id,
-              food_category_id: Number(foodId),
+              food_category_id: foodId,
             })),
             skipDuplicates: true,
           });
         }
 
-        // --- CAMBIO AQUÍ: Usar community_tag_id para communityPreferences ---
         if (userData.communityPreferences?.length) {
           await tx.userPreference.createMany({
             data: userData.communityPreferences.map((communityId) => ({
               user_id: user.id,
-              community_tag_id: Number(communityId),
+              community_tag_id: communityId,
             })),
             skipDuplicates: true,
           });
@@ -100,21 +98,6 @@ export class UserService {
     }
   }
 
-  // ACTUALIZAR IMAGEN DE PERFIL
-  // ============================================================
-  async updateAvatar(userId: string, avatarUrl: string): Promise<User> {
-    try {
-      const result = await prisma.user.update({
-        where: { id: userId },
-        data: { avatar_url: avatarUrl },
-      });
-      return result;
-    } catch (error) {
-      console.error("Error al actualizar imagen de perfil:", error);
-      throw error;
-    }
-  }
-
   // OBTENER USUARIO POR ID
   // ============================================================
   async getById(user_id: string) {
@@ -130,7 +113,7 @@ export class UserService {
 
       return result;
     } catch (e: any) {
-      throw new Error(e.message);
+      throw e;
     }
   }
 
@@ -245,22 +228,47 @@ export class UserService {
         pagination: { page: currentPage, hasMore },
       };
     } catch (e: any) {
-      throw new Error(e.message);
+      throw new Error("Error al buscar usuario");
     }
   }
 
   // ACTUALIZAR USUARIO
   // ============================================================
-  async update(user_id: string, data: any) {
+  async update(
+    user_id: string,
+    data: Partial<User> & {
+      foodPreferences?: string[];
+      communityPreferences?: string[];
+    },
+  ) {
     try {
+      const { foodPreferences, communityPreferences, ...userData } = data;
+
+      const updatePayload: any = { ...userData };
+
+      if (foodPreferences !== undefined || communityPreferences !== undefined) {
+        updatePayload.preferences = {
+          deleteMany: {},
+          create: [
+            ...(foodPreferences || []).map((id) => ({
+              food_category_id: id,
+            })),
+            ...(communityPreferences || []).map((id) => ({
+              community_tag_id: id,
+            })),
+          ],
+        };
+      }
       const result = await prisma.user.update({
         where: { id: user_id },
-        data,
+        data: updatePayload,
+        include: {
+          preferences: true,
+        },
       });
       return result;
-    } catch (error) {
-      console.error("Error al actualizar usuario:", error);
-      throw error;
+    } catch (e: any) {
+      throw new Error("Error al actualizar usuario");
     }
   }
 }

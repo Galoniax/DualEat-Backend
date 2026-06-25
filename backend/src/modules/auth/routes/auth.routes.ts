@@ -151,35 +151,17 @@ router.get(
         }
       }
 
-      const workplaceData = workplaces.map((workplace: { role: any }) => ({
-        id: (workplace as any).local.id,
-        slug: (workplace as any).local.slug,
-        name: (workplace as any).local.name,
-        role: workplace.role,
-      }));
-
-      const userData: UserSessionData = {
+      const session: Pick<UserSessionData, "id" | "role" | "provider" | "deviceId" | "loginAt" | "lastActivity"> = {
         id: user.id,
-        name: user.name,
-        email: user.email,
-        slug: user.slug,
         role: user.role,
         provider: user.provider,
-        isBusiness: user.isBusiness,
-        active: user.active,
-        verified: user.verified,
-        subscription_status: user.subscription_status,
-        trial_ends_at: user.trial_ends_at,
-        avatar_url: user.avatar_url,
-
-        workplaces: workplaceData,
+        deviceId: deviceID,
         loginAt: new Date(),
         lastActivity: new Date(),
-        deviceId: deviceID,
       };
 
       // ============ Lógica de autenticación =============
-      const accessToken = await createSecureToken(userData, true, deviceID);
+      const accessToken = await createSecureToken(session, true, deviceID);
 
       res.cookie("accessToken", accessToken, {
         httpOnly: true,
@@ -195,7 +177,7 @@ router.get(
         return res.redirect(`dualeat://callback?token=${accessToken}`);
       } else {
         if (user.isBusiness) {
-          if (user.subscription_status?.toLowerCase() === "active") {
+          if (user.subscription_status === "active") {
             return res.redirect(
               `${process.env.FRONTEND_URL}/business/dashboard`,
             );
@@ -259,12 +241,9 @@ router.post(
   "/upload",
   limiter(false),
   isAuthenticated,
-  upload.fields([
-    { name: "avatar_url", maxCount: 1 }
-  ]),
+  upload.fields([{ name: "avatar_url", maxCount: 1 }]),
   controller.upload.bind(controller),
 );
-
 
 router.get("/me", isAuthenticated, (req, res) => {
   res.json(req.user);
@@ -274,10 +253,17 @@ router.get("/:user_id", controller.getById.bind(controller));
 
 router.get("/:user_id/search", controller.getUserSearch.bind(controller));
 
-router.put("/me", limiter(false), isAuthenticated, controller.update.bind(controller));
+router.put(
+  "/me",
+  limiter(false),
+  isAuthenticated,
+  controller.update.bind(controller),
+);
 
 // 4. RUTAS DE LOGOUT
 // =========================================
 router.post("/logout", controller.logout.bind(controller));
+
+router.post("/logout-all", isAuthenticated, controller.logoutAll.bind(controller));
 
 export default router;

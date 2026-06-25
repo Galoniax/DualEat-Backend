@@ -5,7 +5,6 @@ import { SECRET_KEY } from "@/core/config/config";
 import { prisma } from "@/core/database/prisma/prisma";
 
 import jwt from "jsonwebtoken";
-import axios from "axios";
 
 import {
   RegisterStepTwoDto,
@@ -117,7 +116,6 @@ export class AuthController {
         });
       }
 
-      // ============================================================
       // 4. RESTRICCIÓN DE PERSONAL (STAFF) EN WEB
       // ============================================================
       if (platform !== "mobile") {
@@ -164,24 +162,16 @@ export class AuthController {
 
       // 4. PREPARACIÓN DE DATOS DE SESIÓN
       // ============================================================
-      const userData: UserSessionData = {
+      const session: Pick<
+        UserSessionData,
+        "id" | "role" | "provider" | "deviceId" | "loginAt" | "lastActivity"
+      > = {
         id: user.id,
-        name: user.name,
-        email: user.email,
-        slug: user.slug,
         role: user.role,
         provider: user.provider,
-        isBusiness: user.is_business,
-        active: user.active,
-        verified: user.verified,
-        subscription_status: user.subscription_status,
-        trial_ends_at: user.trial_ends_at,
-        avatar_url: user.avatar_url ?? null,
-        workplaces: user.workplaces || [],
-
+        deviceId: deviceId,
         loginAt: new Date(),
         lastActivity: new Date(),
-        deviceId: deviceId,
       };
 
       // 5. GENERACIÓN DE TOKEN Y COOKIE
@@ -189,13 +179,13 @@ export class AuthController {
 
       // Crear Token
       const accessToken = await createSecureToken(
-        userData,
+        session,
         remember || false,
         deviceId,
       );
 
       const cookieMaxAge = remember
-        ? 14 * 24 * 60 * 60 * 1000
+        ? 7 * 24 * 60 * 60 * 1000
         : 24 * 60 * 60 * 1000;
 
       const cookieOptions = {
@@ -219,13 +209,12 @@ export class AuthController {
           success: true,
           message: "Login exitoso",
           token: accessToken,
-          user: userData,
+          user: user,
         });
-    } catch (e) {
-      console.error("Login error:", e);
+    } catch (e: any) {
       return res.status(500).json({
         success: false,
-        message: "Error interno del servidor",
+        message: e.message || "Error interno del servidor",
       });
     }
   }
@@ -290,7 +279,6 @@ export class AuthController {
   // =========================================================
   async completeProfile(req: Request, res: Response) {
     try {
-      // ==================== EXTRACCIÓN =====================
       const { name, foodPreferences, communityPreferences, tempToken } =
         req.body as RegisterStepTwoDto & { tempToken: string };
 
@@ -312,15 +300,11 @@ export class AuthController {
         });
       }
 
-      // ============================================================
       // 2. PREPARACIÓN DE DATOS DEL USUARIO
-      // ============================================================
       const model = prisma.user;
 
-      // Generar Slug único
       const userSlug = await generateUniqueSlug(name.trim(), model);
 
-      // URL de Avatar por defecto
       const DEFAULT_AVATAR =
         "https://ohhvldagwoycuifwhgtc.supabase.co/storage/v1/object/public/assets/DefaultProfile.png";
 
@@ -335,7 +319,6 @@ export class AuthController {
         communityPreferences,
       };
 
-      // ============================================================
       // 3. CREACIÓN EN BASE DE DATOS
       // ============================================================
       const user = await this.userService.create(userDataToCreate);
@@ -344,41 +327,22 @@ export class AuthController {
         throw new Error("Error al crear el usuario en la base de datos");
       }
 
-      // ============================================================
-      // 4. INICIO DE SESIÓN AUTOMÁTICO
-      // ============================================================
-
-      // Recuperamos el DeviceID
       const deviceId = tempData.dev || "unknown_device";
 
-      const userSessionData: UserSessionData = {
+      const session: Pick<
+        UserSessionData,
+        "id" | "role" | "provider" | "deviceId" | "loginAt" | "lastActivity"
+      > = {
         id: user.id,
-        name: user.name,
-        email: user.email,
-        slug: user.slug,
         role: user.role,
         provider: user.provider,
-        isBusiness: user.is_business,
-        active: user.active,
-        workplaces: [],
-        verified: user.verified,
-        subscription_status: user.subscription_status,
-        trial_ends_at: user.trial_ends_at,
-        avatar_url: user.avatar_url,
-
+        deviceId: deviceId,
         loginAt: new Date(),
         lastActivity: new Date(),
-        deviceId: deviceId,
       };
 
-      // Crear Token Definitivo
-      const accessToken = await createSecureToken(
-        userSessionData,
-        true,
-        deviceId,
-      );
+      const accessToken = await createSecureToken(session, true, deviceId);
 
-      // ============================================================
       // 5. RESPUESTA UNIFICADA
       // ============================================================
       const cookieOptions = {
@@ -386,7 +350,7 @@ export class AuthController {
         secure: process.env.NODE_ENV === "production",
         path: "/",
         sameSite: "strict" as const,
-        maxAge: 14 * 24 * 60 * 60 * 1000,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       };
 
       return res
@@ -395,14 +359,13 @@ export class AuthController {
         .json({
           success: true,
           message: "Registro completado exitosamente",
-          user: userSessionData,
+          user: user,
           token: accessToken,
         });
-    } catch (e) {
-      console.error("Error al completar el perfil:", e);
+    } catch (e: any) {
       return res.status(500).json({
         success: false,
-        message: "Error interno al completar el perfil",
+        message: e.message || "Error interno al completar el perfil",
       });
     }
   }
@@ -545,11 +508,38 @@ export class AuthController {
         success: true,
         message: "Sesión cerrada exitosamente",
       });
-    } catch (e) {
-      console.error("Error en logout:", e);
+    } catch (e: any) {
+      return res.status(500).json({
+        success: false,
+        message: "Error al cerrar sesión",
+      });
+    }
+  }
+
+  // CERRAR TODAS LAS SESIONES
+  // =========================================================
+  async logoutAll(req: Request, res: Response) {
+    try {
+      const user_id = (req as any).user?.id;
+      if (user_id) {
+        await this.authSessionService.revokeAllUserSessions(user_id);
+      }
+
+      res.clearCookie("accessToken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        path: "/",
+      });
+
       return res.status(200).json({
         success: true,
-        message: "Sesión cerrada",
+        message: "Todas las sesiones cerradas exitosamente",
+      });
+    } catch (e: any) {
+      return res.status(500).json({
+        success: false,
+        message: "Error al cerrar todas las sesiones",
       });
     }
   }
@@ -630,7 +620,7 @@ export class AuthController {
   // ACTUALIZAR PERFIL (STAFF / USER)
   // =========================================================
   async update(req: Request, res: Response) {
-    const { name, avatar_url, currentPassword, newPassword } = req.body;
+    const { name, avatar_url, currentPassword, newPassword, foodPreferences, communityPreferences } = req.body;
 
     const user_id = (req as any).user?.id || req.body.user_id;
     try {
@@ -650,7 +640,15 @@ export class AuthController {
         updateData.avatar_url = avatar_url;
       }
 
-      if (newPassword) {
+      if (foodPreferences !== undefined) {
+        updateData.foodPreferences = foodPreferences;
+      }
+
+      if (communityPreferences !== undefined) {
+        updateData.communityPreferences = communityPreferences;
+      }
+
+      if (newPassword !== undefined && currentPassword !== undefined) {
         const user = await this.userService.getById(user_id);
         if (!user || !user.password_hash) {
           return res.status(400).json({
