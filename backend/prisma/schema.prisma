@@ -44,7 +44,8 @@ enum VoteType {
 }
 
 enum OrderStatus {
-  PENDING // Nuevo pedido, esperando pago o confirmación
+  IN_PROGRESS // Orden en proceso de pago/checkout (se elimina si expira)
+  PENDING // Nuevo pedido, esperando pago o confirmación (manual/staff)
   PAID // Pedido pagado, esperando preparación
   COMPLETED // Pedido completado y entregado
   CANCELLED // Pedido cancelado por el usuario o el local
@@ -210,8 +211,8 @@ model UserPreference {
   user    User   @relation(fields: [user_id], references: [id])
   user_id String
 
-  food_category_id Int?
-  community_tag_id Int?
+  food_category_id String?
+  community_tag_id String?
 
   foodCategory FoodCategory? @relation(fields: [food_category_id], references: [id], onDelete: Cascade)
   communityTag CommunityTag? @relation(fields: [community_tag_id], references: [id], onDelete: Cascade)
@@ -224,13 +225,13 @@ model Notification {
   id           String                  @id @default(cuid()) @map("id")
   user_id      String
   content_type NotificationContentType
-  content_id   String?
+  content_id   String? // ID de la entidad a la que se refiere la notificación
 
-  metadata Json?
+  title   String
+  message String
 
-  message    String
+  metadata   Json?
   read       Boolean  @default(false)
-  deleted    Boolean  @default(false)
   created_at DateTime @default(now())
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -274,7 +275,8 @@ model Local {
   Subscription    Subscription[]
   support_tickets SupportTicket[]
 
-  categories FoodCategory[] @relation("LocalCategories")
+  categories  FoodCategory[] @relation("LocalCategories")
+  credentials Credentials?
 
   @@index([name, latitude, longitude])
 }
@@ -364,7 +366,7 @@ model LocalReview {
 // MODELO DE COMIDAS Y CATEGORÍAS
 // ========================================================
 model FoodCategory {
-  id       Int           @id @default(autoincrement())
+  id       String        @id @default(nanoid(8)) @map("id")
   name     String        @unique
   tipo     TypesCategory
   icon_url String?
@@ -380,7 +382,7 @@ model FoodCategory {
 model Food {
   id          String @id @default(nanoid(10)) @map("id")
   local_id    String
-  category_id Int
+  category_id String
 
   name        String
   description String?
@@ -499,7 +501,7 @@ model TagCategory {
 }
 
 model CommunityTag {
-  id     Int     @id @default(autoincrement())
+  id     String  @id @default(nanoid(8)) @map("id")
   name   String  @unique
   active Boolean @default(true)
 
@@ -560,13 +562,12 @@ model RecipeIngredient {
 }
 
 model RecipeStep {
-  id             String  @id @default(cuid()) @map("id")
-  recipe         Recipe  @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
+  id             String @id @default(cuid()) @map("id")
+  recipe         Recipe @relation(fields: [recipe_id], references: [id], onDelete: Cascade)
   recipe_id      String
   step_number    Int
   description    String
-  image_url      String?
-  estimated_time Int     @default(0)
+  estimated_time Int    @default(0)
 
   @@unique([recipe_id, step_number])
 }
@@ -574,7 +575,6 @@ model RecipeStep {
 // ========================================================
 // MODELO DE POSTS
 // ========================================================
-
 model Post {
   id           String    @id @default(nanoid(10)) @map("id")
   slug         String    @unique
@@ -748,4 +748,18 @@ model SupportMessage {
 
   @@index([ticket_id])
   @@index([sender_id])
+}
+
+model Credentials {
+  id            String   @id @default(cuid())
+  local_id      String   @unique
+  access_token  String // Token con el que harás los cobros de sus platos
+  refresh_token String // Token para renovar el access_token cuando expire
+  public_key    String // Llave pública del local
+  user_id_mp    String // ID de usuario de Mercado Pago de ese local
+  expires_in    Int // Tiempo de expiración del token
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  local Local @relation(fields: [local_id], references: [id], onDelete: Cascade)
 }
