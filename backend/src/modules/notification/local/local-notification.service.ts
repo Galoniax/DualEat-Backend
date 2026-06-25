@@ -26,9 +26,9 @@ export class LocalNotificationService {
         data: businessUserIds.map((userId) => ({
           user_id: userId,
           content_type: "LOCAL",
+          title: "¡Nueva Categoría Disponible!",
           message: `El administrador ha agregado una nueva categoría: "${categoryName}". Ahora puedes usarla para tu menú.`,
           metadata: {
-            title: "¡Nueva Categoría Disponible!",
             type: "new_category",
           },
         })),
@@ -81,17 +81,17 @@ export class LocalNotificationService {
           user_id: userId,
           content_type: "LOCAL",
           content_id: localId,
+          title: "¡Recibiste una nueva reseña!",
           message: `${userName} ha dejado una reseña de ${rating} estrellas en "${local.name}".`,
           metadata: {
-            title: "¡Recibiste una nueva reseña!",
             type: "new_review",
             localId: localId,
           },
         })),
       });
 
-      const socketServer = getSocketServer();
-      socketServer.to(recipientIds).emit("new_review_local", {
+      const io = getSocketServer();
+      io.to(recipientIds).emit("new_review_local", {
         type: "new_review",
         localId: localId,
         title: "¡Recibiste una nueva reseña!",

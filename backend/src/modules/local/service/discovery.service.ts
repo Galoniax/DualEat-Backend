@@ -63,6 +63,8 @@ export class DiscoveryService {
       where: {
         latitude: { gte: latMin, lte: latMax },
         longitude: { gte: lonMin, lte: lonMax },
+        active: true,
+
 
         ...queryFilter,
         schedules: preferencesDTO.horario
@@ -341,6 +343,7 @@ export class DiscoveryService {
 
     return response;
   }
+
   // OBTENER LOCALES POR CERCANÍA
   // =========================================================
   async getLocalsByNearby(lat: number, lng: number, radius: number) {
@@ -364,6 +367,7 @@ export class DiscoveryService {
         where: {
           latitude: { gte: latMin, lte: latMax },
           longitude: { gte: lngMin, lte: lngMax },
+          active: true,
 
           /*schedules: {
           some: {

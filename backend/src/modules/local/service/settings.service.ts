@@ -52,8 +52,6 @@ export class SettingsService {
           phone: data.phone,
           email: data.email,
           image_url: data.image_url,
-          categories: data.categories,
-
           latitude: data.latitude,
           longitude: data.longitude,
         },

@@ -12,21 +12,17 @@ const controller = new NotificationController(service);
 // =========================================================
 router.get("/", isAuthenticated, controller.getAll.bind(controller));
 
-// 2. Contar notificaciones no leidas de un usuario
+// 2. Cambiar estado de recibir notificaciónes
 // =========================================================
-router.get("/unread-count", isAuthenticated, controller.getUnreadCount.bind(controller));
+router.patch("/status", isAuthenticated, controller.changeStatus.bind(controller));
 
-// 3. Cambiar estado de recibir notificaciónes
-// =========================================================
-router.put("/status", isAuthenticated, controller.changeStatus.bind(controller));
-
-// 4. Marcar todo como leido
+// 3. Marcar todo como leido
 // =========================================================
 router.patch("/mark-all-as-read", isAuthenticated, controller.markAllAsRead.bind(controller));
 
 // 5. Marcar una notificación como leida
 // =========================================================
-router.put("/read", isAuthenticated, controller.markAsRead.bind(controller));
+router.patch("/read/:id", isAuthenticated, controller.markAsRead.bind(controller));
 
 // 6. Eliminar todas las notificaciónes
 // =========================================================

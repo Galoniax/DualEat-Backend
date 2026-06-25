@@ -3,5 +3,5 @@ export interface CommunityDTO {
   description: string;
   banner_url: string;
   image_url: string;
-  tags: number[]; 
+  tags: string[];
 }

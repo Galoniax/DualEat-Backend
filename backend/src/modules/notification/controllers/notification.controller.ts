@@ -31,9 +31,10 @@ export class NotificationController {
   // CAMBIAR ESTADO DE UNA NOTIFICACIÓN
   // =========================================================
   async changeStatus(req: Request, res: Response) {
+    const { community_id, type, value } = req.body;
+    const user_id = (req as any).user?.id;
+    
     try {
-      const { community_id, type, value } = req.body;
-      const user_id = (req as any).user?.id;
       const notification = await this.notificationService.changeStatus(
         community_id,
         user_id,
@@ -42,93 +43,48 @@ export class NotificationController {
       );
       return res.status(200).json({ success: true, data: notification });
     } catch (e: any) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: e.message || "Error al cambiar el estado de la notificación",
-        });
-    }
-  }
-
-  // OBTENER CANTIDAD DE NOTIFICACIONES NO LEÍDAS
-  // =========================================================
-  async getUnreadCount(req: Request, res: Response) {
-    try {
-      const user_id = (req as any).user?.id;
-
-      if (!user_id) {
-        return res
-          .status(401)
-          .json({ success: false, message: "No autorizado" });
-      }
-
-      const count = await this.notificationService.getUnreadCount(user_id);
-      return res.status(200).json({ success: true, data: count });
-    } catch (e: any) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message:
-            e.message ||
-            "Error al obtener la cantidad de notificaciones no leídas",
-        });
+      return res.status(400).json({
+        success: false,
+        message: e.message || "Error al cambiar el estado de la notificación",
+      });
     }
   }
 
   // MARCAR TODAS LAS NOTIFICACIONES COMO LEÍDAS
   // =========================================================
   async markAllAsRead(req: Request, res: Response) {
+    const user_id = (req as any).user?.id;
+
     try {
-      const user_id = (req as any).user?.id;
-
-      if (!user_id) {
-        return res
-          .status(401)
-          .json({ success: false, message: "No autorizado" });
-      }
-
       await this.notificationService.markAllasRead(user_id);
       return res.status(200).json({
         success: true,
         message: "Notificaciones marcadas como leídas",
       });
     } catch (e: any) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message:
-            e.message || "Error al marcar las notificaciones como leídas",
-        });
+      return res.status(400).json({
+        success: false,
+        message: e.message || "Error al marcar las notificaciones como leídas",
+      });
     }
   }
 
   // MARCAR UNA NOTIFICACIÓN COMO LEÍDA
   // =========================================================
   async markAsRead(req: Request, res: Response) {
+    const { id } = req.params as { id: string };
+    const user_id = (req as any).user?.id;
+
     try {
-      const { id } = req.body;
-      const user_id = (req as any).user?.id;
-
-      if (!user_id) {
-        return res
-          .status(401)
-          .json({ success: false, message: "No autorizado" });
-      }
-
       await this.notificationService.markAsRead(String(id), user_id);
       return res
         .status(200)
         .json({ success: true, message: "Notificación marcada como leída" });
     } catch (e: any) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: e.message || "Error al marcar la notificación",
-        });
+      return res.status(400).json({
+        success: false,
+        message: e.message || "Error al marcar la notificación",
+      });
     }
   }
 
@@ -137,10 +93,6 @@ export class NotificationController {
   async deleteAll(req: Request, res: Response) {
     try {
       const user_id = (req as any).user?.id;
-
-      if (!user_id) {
-        return res.status(401).json({ error: "No autorizado" });
-      }
 
       await this.notificationService.deleteAll(user_id);
       return res.status(204).send();
@@ -157,10 +109,6 @@ export class NotificationController {
     try {
       const { id } = req.params as { id: string };
       const user_id = (req as any).user?.id;
-
-      if (!user_id) {
-        return res.status(401).json({ error: "No autorizado" });
-      }
 
       await this.notificationService.delete(String(id), user_id);
       return res.status(204).send();

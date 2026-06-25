@@ -1,16 +1,16 @@
-import { prisma } from "../../../core/database/prisma/prisma";
-import type { CreateNotificationDTO } from "../dto/notification.dto";
+import { prisma } from "@/core/database/prisma/prisma";
+import type { CreateNotificationDTO } from "../types/notification.dto";
 
 export class NotificationService {
   constructor() {}
 
-  /** GET USER NOTIFICATIONS */
+  // OBTENER NOTIFICACIONES
+  // =========================================================
   async getAll(user_id: string) {
     try {
       const result = await prisma.notification.findMany({
         where: {
           user_id,
-          deleted: false,
         },
         include: {
           user: {
@@ -33,7 +33,8 @@ export class NotificationService {
     }
   }
 
-  /** CHANGE NOTIFICATION STATUS  */
+  // CAMBIAR ESTADO DE UNA NOTIFICACIÓN
+  // =========================================================
   async changeStatus(
     community_id: string,
     user_id: string,
@@ -72,29 +73,13 @@ export class NotificationService {
     }
   }
 
-  /** GET UNREAD COUNT */
-  async getUnreadCount(user_id: string) {
-    try {
-      const result = await prisma.notification.count({
-        where: {
-          user_id,
-          deleted: false,
-          read: false,
-        },
-      });
-      return result;
-    } catch (error) {
-      throw new Error(`Error al obtener notificaciones: ${error}`);
-    }
-  }
-
-  /** MARK ALL AS READ */
+  // MARCAR TODAS NOTIFICACIONES COMO LEÍDAS
+  // =========================================================
   async markAllasRead(user_id: string) {
     try {
       const result = await prisma.notification.updateMany({
         where: {
           user_id,
-          deleted: false,
         },
         data: {
           read: true,
@@ -106,7 +91,8 @@ export class NotificationService {
     }
   }
 
-  /** MARK AS READ */
+  // MARCAR UNA NOTIFICACIÓN COMO LEÍDA
+  // =========================================================
   async markAsRead(id: string, user_id: string) {
     try {
       const notif = await prisma.notification.findFirst({
@@ -129,76 +115,72 @@ export class NotificationService {
         },
       });
       return result;
-    } catch (error) {
-      throw new Error(`Error al obtener notificaciones: ${error}`);
+    } catch (e: any) {
+      throw e;
     }
   }
 
-  /** DELETE ALL NOTIFICATIONS */
+  // ELIMINAR TODAS LAS NOTIFICACIONES
+  // =========================================================
   async deleteAll(user_id: string) {
     try {
-      const result = await prisma.notification.updateMany({
+      const result = await prisma.notification.deleteMany({
         where: {
           user_id,
-          deleted: false,
-        },
-        data: {
-          deleted: true,
         },
       });
       return result;
-    } catch (error) {
-      throw new Error(`Error al obtener notificaciones: ${error}`);
+    } catch (e: any) {
+      throw new Error(`Error al eliminar todas las notificaciones`);
     }
   }
 
-  /** DELETE NOTIFICATION */
+  // ELIMINAR UNA NOTIFICACIÓN
+  // =========================================================
   async delete(id: string, user_id: string) {
     try {
-      const result = await prisma.notification.update({
+      const result = await prisma.notification.delete({
         where: {
           id,
           user_id,
         },
-        data: {
-          deleted: true,
-        },
       });
       return result;
-    } catch (error) {
-      throw new Error(`Error al obtener notificaciones: ${error}`);
+    } catch (e: any) {
+      throw new Error(`Error al eliminar la notificación`);
     }
   }
 
-
-
-
-  
-  /** CREATE NOTIFICATION (usado internamente por otros servicios) */
-  async createNotification(data: CreateNotificationDTO) {
+  // CREAR NOTIFICACIÓN
+  // =========================================================
+  async create(data: CreateNotificationDTO) {
     try {
       const notification = await prisma.notification.create({
         data: {
           user_id: data.user_id,
           content_type: data.content_type,
+          title: data.title,
           content_id: data.content_id,
+
           message: data.message,
           metadata: data.metadata || {},
         },
       });
 
       return notification;
-    } catch (error) {
-      throw new Error(`Error al crear notificación: ${error}`);
+    } catch (e: any) {
+      throw null;
     }
   }
 
-  /** CREATE MANY NOTIFICATIONS (usado por post.service para múltiples usuarios) */
-  async createManyNotifications(notifications: CreateNotificationDTO[]) {
+  // CREAR MUCHAS NOTIFICACIONES
+  // =========================================================
+  async createMany(notifications: CreateNotificationDTO[]) {
     try {
       const result = await prisma.notification.createMany({
         data: notifications.map((notif) => ({
           user_id: notif.user_id,
+          title: notif.title,
           content_type: notif.content_type,
           content_id: notif.content_id,
           message: notif.message,
@@ -207,8 +189,8 @@ export class NotificationService {
       });
 
       return result;
-    } catch (error) {
-      throw new Error(`Error al crear notificaciones: ${error}`);
+    } catch (e: any) {
+      return null;
     }
   }
 }

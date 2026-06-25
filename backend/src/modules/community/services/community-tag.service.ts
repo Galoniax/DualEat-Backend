@@ -65,7 +65,7 @@ export class CommunityTagService {
   }
 
   /** ACTUALIZAR ETIQUETA */
-  async updateCommunityTag(id: number, data: any) {
+  async updateCommunityTag(id: string, data: any) {
     try {
       return await prisma.communityTag.update({
         where: { id },
@@ -77,7 +77,7 @@ export class CommunityTagService {
   }
 
   /** ELIMINAR ETIQUETA */
-  async deleteCommunityTag(id: number) {
+  async deleteCommunityTag(id: string) {
     try {
       return await prisma.communityTag.delete({
         where: { id },
