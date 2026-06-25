@@ -1,12 +1,12 @@
+import { Request, Response } from "express";
 import { CartService } from "../services/cart.service";
 
 export class CartController {
   constructor(private cartService: CartService) {}
 
-  // =========================================================
   // OBTENER INFO DEL CARRITO
   // =========================================================
-  getCartInfo = async (req: any, res: any) => {
+  getCartInfo = async (req: Request, res: Response) => {
     const { food_ids, local_id } = req.body;
 
     if (!local_id || !food_ids || !Array.isArray(food_ids)) {

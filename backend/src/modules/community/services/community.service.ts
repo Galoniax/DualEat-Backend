@@ -216,7 +216,7 @@ export class CommunityService {
 
   // OBTENER COMUNIDAD (by category)
   // =========================================================
-  async getByTagSkeleton(tag_id: number) {
+  async getByTagSkeleton(tag_id: string) {
     try {
       const result = await prisma.community.findMany({
         where: {

@@ -4,7 +4,7 @@ export class ManualService {
   async createFood(
     localId: string,
     data: {
-      category_id: number;
+      category_id: string;
       name: string;
       description?: string;
       price: number;
@@ -37,7 +37,7 @@ export class ManualService {
   async updateFood(
     foodId: string,
     data: {
-      category_id?: number;
+      category_id?: string;
       name?: string;
       description?: string;
       price?: number;
@@ -93,7 +93,7 @@ export class ManualService {
           data: {
             local_id: localId,
             // Asignamos la categoría del plato, o la de rescate si el OCR no trajo ninguna
-            category_id: dish.category_id ? Number(dish.category_id) : fallbackCategory.id,
+            category_id: dish.category_id ? String(dish.category_id) : fallbackCategory.id,
             name: String(dish.name),
             description: dish.description ? String(dish.description) : null,
             price: Number(dish.price) || 0,

@@ -95,7 +95,7 @@ export class MenuController {
       }
 
       // Prisma solo acepta category_id. Si el frontend manda local_menu_category_id, lo usamos como category_id
-      const finalCategoryId = Number(local_menu_category_id || category_id || 1);
+      const finalCategoryId = String(local_menu_category_id || category_id || 1);
 
       const food = await this.manualService.createFood(localId, {
         category_id: finalCategoryId,
@@ -165,7 +165,7 @@ export class MenuController {
           price: dataToUpdate.price ? Number(dataToUpdate.price) : undefined,
           image_url: dataToUpdate.image_url,
           available: dataToUpdate.available,
-          category_id: finalCategoryId ? Number(finalCategoryId) : undefined,
+          category_id: finalCategoryId ? String(finalCategoryId) : undefined,
         }
       );
       return res.json(updatedFood);
@@ -197,7 +197,7 @@ export class MenuController {
       const finalCategoryId = local_menu_category_id || category_id;
 
       const food = await this.manualService.updateFood(foodId, {
-        category_id: finalCategoryId ? Number(finalCategoryId) : undefined,
+        category_id: finalCategoryId ? String(finalCategoryId) : undefined,
         name,
         description,
         price: price !== undefined ? Number(price) : undefined,

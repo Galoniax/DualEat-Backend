@@ -53,7 +53,7 @@ export class FoodCategoryController {
     }
     try {
       const updatedCategory = await this.foodCategoryService.updateFoodCategory(
-        Number(id),
+        String(id),
         name,
         tipo as TypesCategory,
         icon_url,
@@ -67,7 +67,7 @@ export class FoodCategoryController {
   handleDeleteFoodCategory = async (req: Request, res: Response) => {
     const { id } = req.params;
     try {
-      await this.foodCategoryService.deleteFoodCategory(Number(id));
+      await this.foodCategoryService.deleteFoodCategory(String(id));
       res.status(204).send();
     } catch (error: any) {
       console.error("Error deleting food category:", error);
@@ -116,7 +116,7 @@ export class FoodCategoryController {
     }
     try {
       const updatedLocal =
-        await this.foodCategoryService.createLocalMenuCategory(Number(category_id), local_id);
+        await this.foodCategoryService.createLocalMenuCategory(String(category_id), local_id);
       res.status(201).json(updatedLocal);
     } catch (error) {
       console.error("Error al vincular categoría al local:", error);
@@ -134,7 +134,7 @@ export class FoodCategoryController {
     }
 
     try {
-      await this.foodCategoryService.deleteLocalMenuCategory(Number(categoryId), localId as string);
+      await this.foodCategoryService.deleteLocalMenuCategory(String(categoryId), localId as string);
       res.status(204).send();
     } catch (error) {
       console.error("Error al desvincular la categoría:", error);

@@ -1,4 +1,4 @@
-import { prisma } from "../../../core/database/prisma/prisma";
+import { prisma } from "@/core/database/prisma/prisma";
 
 export class FoodService {
   async createFoodsFromOcr(
@@ -14,7 +14,7 @@ export class FoodService {
             name: dish.name,
             price: dish.price,
             description: null,
-            category_id: 1,
+            category_id: "1",
             image_url: null,
             available: true,
           },
@@ -51,6 +51,7 @@ export class FoodService {
               },
             },
           },
+          schedules: true,
         },
       });
 
@@ -63,7 +64,7 @@ export class FoodService {
 
       // Procesar platos y aplicar descuentos
       const foodsWithDiscounts = local.foods.map((food) => {
-        const specificPromo = food.promotions; 
+        const specificPromo = food.promotions;
 
         let appliedDiscountPct = 0;
         if (specificPromo && specificPromo.discount_pct) {
@@ -83,36 +84,37 @@ export class FoodService {
           category, // Guardamos la categoria para agrupar luego
           original_price: food.price,
           price: finalPrice,
-          discount_pct_applied: appliedDiscountPct > 0 ? appliedDiscountPct : null,
+          discount_pct_applied:
+            appliedDiscountPct > 0 ? appliedDiscountPct : null,
           ends_at: specificPromo?.ends_at || null,
           sales_count: _count.order_items || 0,
         };
       });
 
       // Agrupar por categoría
-      const categoriesMap = new Map<number, any>();
-      
-      foodsWithDiscounts.forEach(food => {
+      const categoriesMap = new Map<string, any>();
+
+      foodsWithDiscounts.forEach((food) => {
         const cat = food.category;
         if (!cat) return;
-        
+
         if (!categoriesMap.has(cat.id)) {
           categoriesMap.set(cat.id, {
             id: cat.id,
             name: cat.name,
             tipo: cat.tipo,
             icon_url: cat.icon_url,
-            foods: []
+            foods: [],
           });
         }
-        
+
         // Remove category property from food to match expected frontend structure
         const { category: _, ...cleanFood } = food;
         categoriesMap.get(cat.id).foods.push(cleanFood);
       });
 
       const processedCategories = Array.from(categoriesMap.values());
-      
+
       // Remove foods from local object so it matches the previous structure
       const { foods, ...localWithoutFoods } = local;
 
@@ -134,7 +136,7 @@ export class FoodService {
       description?: string;
       image_url?: string;
       available?: boolean;
-      category_id?: number;
+      category_id?: string;
     },
   ) {
     return await prisma.food.update({

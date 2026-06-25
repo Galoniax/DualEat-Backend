@@ -1,5 +1,5 @@
-import { SettingsService } from "../../local/service/settings.service";
-import { FoodService } from "../../menu/services/food.service";
+import { SettingsService } from "@/modules/local/service/settings.service";
+import { FoodService } from "@/modules/menu/services/food.service";
 
 export class CartService {
   constructor(

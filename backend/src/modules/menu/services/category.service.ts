@@ -1,6 +1,6 @@
 import { TypesCategory } from "@prisma/client";
-import { prisma } from "../../../core/database/prisma/prisma";
-import { LocalNotificationService } from "../../notification/local/local-notification.service";
+import { prisma } from "@/core/database/prisma/prisma";
+import { LocalNotificationService } from "@/modules/notification/local/local-notification.service";
 
 export class FoodCategoryService {
 
@@ -44,7 +44,7 @@ export class FoodCategoryService {
 
   // Actualizar una categoría existente
   async updateFoodCategory(
-    id: number,
+    id: string,
     name: string,
     tipo: TypesCategory,
     icon_url: string | null,
@@ -56,7 +56,7 @@ export class FoodCategoryService {
   }
 
   // Eliminar una categoría de forma segura
-  async deleteFoodCategory(id: number) {
+  async deleteFoodCategory(id: string) {
     const foods = await prisma.food.findMany({
       where: { category_id: id },
       select: { name: true },
@@ -94,7 +94,7 @@ export class FoodCategoryService {
     });
   }
 
-  async createLocalMenuCategory(categoryId: number, localId: string) {
+  async createLocalMenuCategory(categoryId: string, localId: string) {
     // Solo conectamos si la categoría ya existe
     return prisma.local.update({
       where: { id: localId },
@@ -105,7 +105,7 @@ export class FoodCategoryService {
     });
   }
 
-  async deleteLocalMenuCategory(categoryId: number, localId: string) {
+  async deleteLocalMenuCategory(categoryId: string, localId: string) {
     return prisma.local.update({
       where: { id: localId },
       data: {
