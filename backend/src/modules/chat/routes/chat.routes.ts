@@ -4,6 +4,7 @@ import { ChatController } from "@/modules/chat/controllers/chat.controller";
 import { RecipeService } from "@/modules/recipe/recipe.service";
 
 import { isAuthenticated } from "@/core/middlewares/isAuthenticated";
+import { requireSubscription } from "@/core/middlewares/requireSubscription";
 import { limiter } from "@/core/middlewares/rateLimiter";
 
 const router = Router();
@@ -16,6 +17,7 @@ const controller = new ChatController(service);
 router.post(
   "/ask",
   isAuthenticated,
+  requireSubscription,
   limiter(true),
   controller.ask.bind(controller),
 );
@@ -30,7 +32,11 @@ router.get("/", isAuthenticated, controller.getUserChats.bind(controller));
 
 // 4. Editar titulo del chat
 // =========================================================
-router.put("/:chat_id/title", isAuthenticated, controller.editTitle.bind(controller));
+router.put(
+  "/:chat_id/title",
+  isAuthenticated,
+  controller.editTitle.bind(controller),
+);
 
 // 5. Eliminar chat
 // =========================================================

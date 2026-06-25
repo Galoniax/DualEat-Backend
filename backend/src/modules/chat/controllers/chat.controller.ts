@@ -48,8 +48,6 @@ export class ChatController {
       req.body;
     const user_id = (req as any).user?.id || req.body.user_id;
 
-    // TODO: Implementar sistema de créditos para limitar el uso de la IA / Suscripción
-
     if (!question) {
       return res
         .status(400)

@@ -81,8 +81,9 @@ export const addMessage = async (req: Request, res: Response) => {
 
         const io = getSocketServer();
         for (const lu of localUsers) {
-          const notification = await notificationService.createNotification({
+          const notification = await notificationService.create({
             user_id: lu.user_id,
+            title: "Ticket de soporte recibido",
             content_type: "LOCAL",
             content_id: ticketId,
             message: "Has recibido una respuesta del Soporte de DualEat",
