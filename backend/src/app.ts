@@ -26,9 +26,9 @@ import {
   Subscription,
   Support,
   Search,
+  Payment,
 } from "./index";
 
-// Configuración y utilidades
 import { configurePassport } from "./core/config/passport";
 import { redisClient } from "./core/config/redis";
 import { API_PREFIX } from "./core/config/config";
@@ -45,15 +45,13 @@ const PORT = process.env.PORT || 3000;
 const httpServer = http.createServer(app);
 
 // 2.2. CONEXIONES Y SERVICIOS
-
-// Verificar conexión a Redis al iniciar
 async function initializeApp() {
   try {
     await redisClient.ping();
     console.log("Redis OK - Aplicación iniciando...");
     initializeSocket(httpServer);
-  } catch (error) {
-    console.error("No se pudo conectar a Redis:", error);
+  } catch (e: any) {
+    console.error("No se pudo conectar a Redis:", e);
     process.exit(1);
   }
 }
@@ -74,7 +72,7 @@ app.use(
   cors({
     origin: validOrigins,
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
@@ -99,7 +97,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 14 * 24 * 60 * 60 * 1000, // 14 días
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
     },
@@ -140,6 +138,7 @@ app.use(`${API_PREFIX}/local`, Local);
 app.use(`${API_PREFIX}/order`, Order);
 app.use(`${API_PREFIX}/subscription`, Subscription);
 app.use(`${API_PREFIX}/support`, Support);
+app.use(`${API_PREFIX}/payment`, Payment);
 
 // Middleware de manejo de errores
 app.use(

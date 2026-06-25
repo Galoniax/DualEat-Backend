@@ -3,7 +3,7 @@ export { default as Auth } from "./modules/auth/routes/auth.routes";
 export { default as Contact } from "./modules/mail/routes/contact.routes";
 
 // --- Módulos de Negocio (Business - Menu - FoodCategory - Review) ---
-export { default as Review } from "./modules/review/review.routes";
+export { default as Review } from "./modules/review/routes/review.routes";
 export { default as Menu } from "./modules/menu/routes/menu.routes";
 export { default as FoodCategory } from "./modules/menu/routes/food-category.routes";
 export { default as Local } from "./modules/local/routes/local.routes";
@@ -27,3 +27,4 @@ export { default as Search } from "./modules/search/routes/search.routes";
 
 export { default as Subscription } from "./modules/subscription/subscriptions.routes";
 export { default as Support } from "./modules/support/routes/support.routes";
+export { default as Payment } from "./modules/payment/routes/payment.routes";
