@@ -17,7 +17,7 @@ export class RecipeController {
       }
 
       return res.status(200).json({ success: true, data: ingredients });
-    } catch (e) {
+    } catch (e: any) {
       return res
         .status(500)
         .json({ success: false, message: "Error interno del servidor" });
@@ -43,10 +43,10 @@ export class RecipeController {
           .json({ success: false, message: "Receta no encontrada" });
       }
       return res.status(200).json({ success: true, data: recipe });
-    } catch (e) {
+    } catch (e: any) {
       return res
-        .status(500)
-        .json({ success: false, message: "Error interno del servidor" });
+        .status(e.status || 500)
+        .json({ success: false, message: e.message || "Error interno del servidor" });
     }
   };
 
@@ -57,36 +57,11 @@ export class RecipeController {
     try {
       const recipes = await this.recipeService.getUserRecipes(user_id);
       return res.status(200).json({ success: true, data: recipes });
-    } catch (e) {
-      return res
-        .status(500)
-        .json({ success: false, message: "Error interno del servidor" });
-    }
-  };
-
-  // OBTENER RECETAS POR IDs
-  // =========================================================
-  getByIds = async (req: Request, res: Response) => {
-    const { ids } = req.body as { ids: string[] };
-
-    if (!ids) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Ids no encontrados" });
-    }
-
-    try {
-      const recipes = await this.recipeService.getByIds(ids);
-      if (!recipes) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Recetas no encontradas" });
-      }
-      return res.status(200).json({ success: true, data: recipes });
-    } catch (e) {
-      return res
-        .status(500)
-        .json({ success: false, message: "Error interno del servidor" });
+    } catch (e: any) {
+      return res.status(e.status || 500).json({
+        success: false,
+        message: e.message || "Error interno del servidor",
+      });
     }
   };
 

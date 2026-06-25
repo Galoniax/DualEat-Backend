@@ -10,8 +10,8 @@ import { limiter } from "@/core/middlewares/rateLimiter";
 import { CommentService } from "../services/comment.service";
 import { CommentController } from "../controllers/comment.controller";
 import { validateBody } from "@/core/middlewares/validation";
-import { createPostSchema } from "../schemas/post.schema";
-import { createCommentSchema } from "../schemas/comment.schema";
+import { createPostSchema } from "../types/post.schema";
+import { createCommentSchema } from "../types/comment.schema";
 
 const upload = multer({
   limits: { fileSize: 1024 * 1024 * 30 },
@@ -55,7 +55,6 @@ router.post(
   upload.fields([
     { name: "post_images", maxCount: 10 },
     { name: "main_image", maxCount: 1 },
-    { name: "step_images", maxCount: 20 },
   ]),
   controller.upload.bind(controller),
 );

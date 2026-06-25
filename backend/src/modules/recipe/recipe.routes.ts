@@ -25,11 +25,7 @@ router.get(
 // =========================================================
 router.get("/:id", controller.getById.bind(controller));
 
-// 4. Obtener recetas por Ids
-// =========================================================
-router.get("/", controller.getByIds.bind(controller));
-
-// 5. Buscar recetas por nombre (PAGINATION)
+// 4. Buscar recetas por nombre (PAGINATION)
 // =========================================================
 router.get("/search", controller.searchRecipes.bind(controller));
 

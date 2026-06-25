@@ -1,124 +1,147 @@
-import { ContentType, Vote, VoteType } from "@prisma/client";
+import {
+  Community,
+  ContentType,
+  NotificationContentType,
+  Post,
+  PostComment,
+  User,
+  Vote,
+  VoteType,
+} from "@prisma/client";
 import { getSocketServer } from "@/core/config/socket.config";
 import { prisma } from "@/core/database/prisma/prisma";
+import { CreateNotificationDTO } from "@/modules/notification/types/notification.dto";
 
 export class CommentService {
-  private async sendCommentNotification(
-    post_id: string,
-    user_id: string,
-    content: string,
-    parent_comment_id?: string | null,
-    reply_to_user_id?: string | null,
+  private async sendNotification(
+    comment: PostComment & {
+      user: User;
+      post: Post & { community: Community };
+      reply_to_user?: User | null;
+      parent_comment?: { user: User } | null;
+    },
   ) {
     try {
-      let recipientUserId: string | null = null;
-      let title = "";
-      let message = "";
+      const isReply = comment.parent_comment_id !== null;
+      const communityId = comment.post.community_id;
+      const commenter = comment.user;
 
-      // Obtener datos del usuario que comentó
-      const commenter = await prisma.user.findUnique({
-        where: { id: user_id },
-        select: {
-          name: true,
-          avatar_url: true,
-          slug: true,
-        },
-      });
+      const recipients = new Set<string>();
 
-      // Obtener datos del post completo
-      const post = await prisma.post.findUnique({
-        where: { id: post_id },
-        include: {
-          user: { select: { slug: true } },
-          community: { select: { slug: true } },
-        },
-      });
-
-      if (!post) return;
-
-      title = post.title;
-
-      if (parent_comment_id) {
-        // Es una respuesta a otro comentario
-        const parentComment = await prisma.postComment.findUnique({
-          where: { id: parent_comment_id },
-          select: { user_id: true },
-        });
-
-        if (parentComment && parentComment.user_id !== user_id) {
-          recipientUserId = parentComment.user_id;
-          message = commenter
-            ? `${commenter.name} respondió a tu comentario en "${title}".`
-            : `Alguien respondió a tu comentario en "${title}".`;
+      // 1. Determinar los destinatarios
+      if (!isReply) {
+        // Comentario directo al post: notificar al creador del post
+        if (comment.post.user_id !== comment.user_id) {
+          recipients.add(comment.post.user_id);
         }
       } else {
-        // Es un comentario directo al post
-        if (post.user_id !== user_id) {
-          recipientUserId = post.user_id;
-          message = commenter
-            ? `${commenter.name} comentó en tu post: "${title}".`
-            : `Alguien comentó en tu post: "${title}".`;
+        // Respuesta a un comentario:
+        // - Notificar al creador del comentario padre
+        const parentCommentAuthorId = comment.parent_comment?.user?.id;
+        if (
+          parentCommentAuthorId &&
+          parentCommentAuthorId !== comment.user_id
+        ) {
+          recipients.add(parentCommentAuthorId);
+        }
+
+        // - Notificar al usuario al que se le responde (si es distinto al parent y de sí mismo)
+        if (
+          comment.reply_to_user_id &&
+          comment.reply_to_user_id !== comment.user_id
+        ) {
+          recipients.add(comment.reply_to_user_id);
         }
       }
 
-      if (recipientUserId) {
-        await prisma.notification.create({
-          data: {
-            user_id: recipientUserId,
-            content_type: "COMMENT",
-            content_id: post_id,
-            message,
-            metadata: {
-              title,
-              message: content,
-              type: "comment",
-              imageURLs: {
-                user: commenter?.avatar_url,
-              },
-              slugs: {
-                community: post.community.slug,
-                user: post.user.slug,
-                post: post.slug,
-              },
+      if (recipients.size === 0) return;
+
+      // 2. Filtrar destinatarios según sus preferencias de notificación de la comunidad y preferencias globales
+      const validRecipients: string[] = [];
+
+      for (const id of recipients) {
+        // Verificar preferencia global
+        const user = await prisma.user.findUnique({
+          where: { id: id },
+          select: { notificationsPref: true },
+        });
+        if (user?.notificationsPref === "NONE") continue;
+
+        // Verificar si es miembro de la comunidad y si tiene notificaciones habilitadas
+        const member = await prisma.communityMember.findUnique({
+          where: {
+            user_id_community_id: {
+              user_id: id,
+              community_id: communityId,
             },
           },
+          select: { receives_notifications: true },
         });
 
-        // Enviar por WebSocket si está conectado
-        try {
-          const socketServer = getSocketServer();
-          socketServer.to(recipientUserId).emit("new_comment", {
-            type: "comment_notification",
-            postId: post_id,
-            parentCommentId: parent_comment_id || null,
+        // Si no es miembro de la comunidad, o si explícitamente tiene la preferencia en "NONE", no le enviamos
+        if (!member || member.receives_notifications === "NONE") continue;
+
+        validRecipients.push(id);
+      }
+
+      if (validRecipients.length === 0) return;
+
+      // 3. Crear las notificaciones en la Base de Datos para cada destinatario válido
+      const notifications: CreateNotificationDTO[] = validRecipients.map(
+        (recipientId) => {
+          let message = "";
+          if (isReply) {
+            const isParentAuthor =
+              comment.parent_comment?.user?.id === recipientId;
+            if (isParentAuthor) {
+              message = `${commenter.name} respondió a tu comentario en "${comment.post.title}".`;
+            } else {
+              message = `${commenter.name} te mencionó en un comentario en "${comment.post.title}".`;
+            }
+          } else {
+            message = `${commenter.name} comentó en tu post: "${comment.post.title}".`;
+          }
+
+          return {
+            user_id: recipientId,
+            content_type: NotificationContentType.COMMENT,
+            content_id: comment.id,
+            title: comment.post.title,
             message,
             metadata: {
-              title,
-              message: content,
-              type: "comment",
-              imageURLs: {
-                user: commenter?.avatar_url,
-              },
-              slugs: {
-                community: post.community.slug,
-                user: post.user.slug,
-                post: post.slug,
+              message: comment.content,
+              params: {
+                slug: comment.post.slug,
               },
             },
-          });
+          };
+        },
+      );
 
+      await prisma.notification.createMany({
+        data: notifications,
+      });
+
+      const io = getSocketServer();
+      for (const n of notifications) {
+        try {
+          io.to(n.user_id).emit("new_comment", {
+            content_type: NotificationContentType.COMMENT,
+            content_id: comment.id,
+            title: comment.post.title,
+            message: n.message,
+            metadata: n.metadata,
+            created_at: new Date().toISOString(),
+          });
           console.log(
-            `[Socket] Notificación de comentario enviada a ${recipientUserId}`,
+            `[Socket] Notificación de comentario enviada a ${n.user_id}`,
           );
-        } catch (socketError) {
-          console.error(
-            "Error al enviar notificación por Socket.io:",
-            socketError,
-          );
+        } catch (e: any) {
+          throw new Error(e.message || "Error al enviar notificación de post");
         }
       }
-    } catch (error) {
-      console.error("Error al enviar notificación de comentario:", error);
+    } catch (e: any) {
+      throw new Error(e.message || "Error al enviar notificación de post");
     }
   }
 
@@ -141,7 +164,6 @@ export class CommentService {
           },
           _count: { select: { replies: { where: { active: true } } } },
         },
-        
       });
 
       const hasMore = comments.length > size;
@@ -261,6 +283,21 @@ export class CommentService {
     parent_comment_id: string | null,
     reply_to_user_id: string | null,
   ) {
+    let e: any;
+
+    const exist = await prisma.post.findUnique({
+      where: { id: post_id },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!exist) {
+      e = new Error("El post no existe.");
+      e.status = 404;
+      throw e;
+    }
+
     try {
       const result = await prisma.$transaction(async (tx) => {
         const comment = await tx.postComment.create({
@@ -274,6 +311,7 @@ export class CommentService {
 
           include: {
             user: {
+              // Autor del comentario
               select: {
                 id: true,
                 name: true,
@@ -281,13 +319,37 @@ export class CommentService {
                 avatar_url: true,
               },
             },
-            reply_to_user: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
+            post: {
+              // Post al que se comenta
+              include: {
+                community: true,
               },
             },
+            ...(reply_to_user_id && {
+              reply_to_user: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                  avatar_url: true,
+                },
+              },
+            }),
+
+            ...(parent_comment_id && {
+              parent_comment: {
+                select: {
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      slug: true,
+                      avatar_url: true,
+                    },
+                  },
+                },
+              },
+            }),
           },
         });
 
@@ -303,15 +365,13 @@ export class CommentService {
         return comment;
       });
 
-      /*if (result) {
-        await this.sendCommentNotification(
-          post_id,
-          user_id,
-          content,
-          parent_comment_id,
-          reply_to_user_id,
-        );
-      }*/
+      if (result) {
+        this.sendNotification(result as any).catch((err) => {
+          throw new Error(
+            err.message || "Error al enviar notificación de comentario",
+          );
+        });
+      }
 
       return result;
     } catch (e) {

@@ -11,7 +11,6 @@ export const createPostSchema = z.object({
     title: z
       .string()
       .min(1, "El título es requerido")
-      .max(300, "El título debe tener menos de 300 caracteres")
       .trim(),
     content: z
       .string()
@@ -67,7 +66,7 @@ export const createPostSchema = z.object({
 export const updatePostSchema = z.object({
   post: z.object({
     id: z.coerce.string().nonempty("El ID del post es requerido"),
-    title: z.string().min(1, "El título es requerido").max(300, "El título debe tener menos de 300 caracteres").trim(),
+    title: z.string().min(1, "El título es requerido").trim(),
     content: z.string().min(1, "El contenido es requerido").transform(sanitizeContent),
     image_urls: z.array(z.url("Cada imagen debe ser una URL válida")).optional(),
     community_id: z.string().nonempty("La comunidad es requerida"),

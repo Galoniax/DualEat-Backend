@@ -19,7 +19,7 @@ export class PostController {
       const { page } = req.query;
       const user_id = (req as any).user?.id;
 
-      const result = await this.postService.getAllPosts(
+      const result = await this.postService.getAll(
         Number(page),
         String(user_id),
       );
@@ -32,16 +32,17 @@ export class PostController {
 
       return res.status(200).json({ success: true, ...result });
     } catch (e: any) {
-      return res
-        .status(e.status || 500)
-        .json({ success: false, message: e.message || "Error interno del servidor" });
+      return res.status(e.status || 500).json({
+        success: false,
+        message: e.message || "Error interno del servidor",
+      });
     }
   };
 
   // OBTENER POSTS DE UNA COMUNIDAD
   // =========================================================
   getCommunityPosts = async (req: Request, res: Response) => {
-    const { page, title } = req.query as { page: string; title?: string };
+    const { page } = req.query as { page: string };
     const { community_id } = req.params as { community_id: string };
 
     const user_id = (req as any).user?.id || req.query.user_id;
@@ -64,7 +65,6 @@ export class PostController {
         Number(page),
         String(community_id),
         String(user_id),
-        String(title),
       );
 
       if (!posts) {
@@ -105,9 +105,10 @@ export class PostController {
 
       return res.status(200).json({ success: true, data: post });
     } catch (e: any) {
-      return res
-        .status(e.status || 500)
-        .json({ success: false, message: e.message || "Error interno del servidor" });
+      return res.status(e.status || 500).json({
+        success: false,
+        message: e.message || "Error interno del servidor",
+      });
     }
   };
 
@@ -123,7 +124,7 @@ export class PostController {
 
       return res.status(201).json({
         success: true,
-        ...result,
+        data: result,
         message: recipe
           ? "Post y receta creados exitosamente"
           : "Post creado exitosamente",
@@ -207,7 +208,6 @@ export class PostController {
       const uploadedUrls: {
         post_images?: string[];
         recipe_main_image?: string;
-        step_images?: string[];
       } = {};
 
       console.log(files);
@@ -224,13 +224,6 @@ export class PostController {
 
         const url = await uploadFiles(optimized[0], "recipes", "recipe_main");
         uploadedUrls.recipe_main_image = url as string;
-      }
-
-      if (files["step_images"] && files["step_images"].length > 0) {
-        const optimized = await optimize(files["step_images"]);
-
-        const urls = await uploadFiles(optimized, "recipes", "steps");
-        uploadedUrls.step_images = Array.isArray(urls) ? urls : [urls];
       }
 
       return res.status(200).json({

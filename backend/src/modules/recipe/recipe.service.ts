@@ -26,6 +26,7 @@ export class RecipeService {
   // =========================================================
   async getById(id: string) {
     try {
+      let error: any;
       const [recipe, votes] = await Promise.all([
         prisma.recipe.findUnique({
           where: { id },
@@ -57,40 +58,19 @@ export class RecipeService {
         }),
       ]);
 
+      if (!recipe) {
+        error = new Error("Receta no encontrada");
+        error.status = 404;
+        throw error;
+      }
+
       return {
         ...recipe,
         votes_up: votes?._sum?.votes_up || 0,
         votes_down: votes?._sum?.votes_down || 0,
       };
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // OBTENER RECETAS POR IDs
-  // =========================================================
-  async getByIds(ids: string[]) {
-    try {
-      const result = await prisma.recipe.findMany({
-        where: { id: { in: ids } },
-        select: {
-          id: true,
-          name: true,
-          main_image: true,
-          total_time: true,
-          user: {
-            select: {
-              id: true,
-              name: true,
-              avatar_url: true,
-              slug: true,
-            },
-          },
-        },
-      });
-      return result;
-    } catch (e) {
-      return null;
+    } catch (e: any) {
+      throw e;
     }
   }
 
@@ -109,9 +89,14 @@ export class RecipeService {
           steps: true,
         },
       });
+
+      if (!result) {
+        throw new Error("Recetas no encontradas");
+      }
+
       return result;
-    } catch (e) {
-      return null;
+    } catch (e: any) {
+      throw e;
     }
   }
 

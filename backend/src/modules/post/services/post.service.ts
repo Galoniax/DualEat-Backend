@@ -13,105 +13,74 @@ import {
   Vote,
   VoteType,
   Prisma,
+  NotificationContentType,
 } from "@prisma/client";
 
 export class PostService {
-  private async sendPostNotification(
-    post: Post & { community?: Community | null },
+  private async sendNotification(
+    post: Post & {
+      community?: Partial<Community> | null;
+    },
     recipe?: Recipe,
   ) {
-    if (!post.community_id) {
-      return;
-    }
+    if (!post.community_id) return;
 
-    // 1. Obtener miembros con notificaciones ALWAYS y FREQUENT (tiempo real)
-    const immediateSubscribers = await prisma.communityMember.findMany({
-      where: {
-        community_id: post.community_id,
-        user_id: {
-          not: post.user_id,
+    try {
+      const members = await prisma.communityMember.findMany({
+        where: {
+          community_id: post.community_id,
+          user_id: { not: post.user_id },
+          receives_notifications: "ALWAYS",
+          user: {
+            notificationsPref: "ALWAYS",
+          },
         },
-        receives_notifications: {
-          in: ["ALWAYS"],
+        select: { user_id: true },
+      });
+
+      if (members.length === 0) return;
+
+      const userIds = members.map((m) => m.user_id);
+
+      const message = recipe
+        ? `Nuevo post con receta en "${post.community?.name || "Comunidad"}": "${post.title}"`
+        : `Nuevo post en "${post.community?.name || "Comunidad"}": "${post.title}"`;
+
+      const metadata = {
+        params: {
+          slug: post.slug,
         },
-      },
-      select: { user_id: true },
-    });
+        message: post.content,
+      };
 
-    // 3. Crear notificaciones en BD para usuarios con notificaciones inmediatas
-    if (immediateSubscribers.length > 0) {
-      const immediateUserIds = immediateSubscribers.map((m) => m.user_id);
-
-      if (recipe) {
-        await prisma.notification.createMany({
-          data: immediateUserIds.map((userId) => ({
-            user_id: userId,
-            content_type: "POST",
-            content_id: recipe.id,
-            message: `Nuevo post con receta publicado en la comunidad: "${post.title}".`,
-            metadata: {
-              title: post.title,
-              message: post.content,
-              type: "post",
-              imageURLs: {
-                community: post.community?.image_url || "",
-                post: recipe.main_image || "",
-              },
-              slugs: {
-                community: post.community?.slug || "",
-              },
-            },
-          })),
-        });
-      } else {
-        await prisma.notification.createMany({
-          data: immediateUserIds.map((userId) => ({
-            user_id: userId,
-            content_type: "POST",
-            content_id: post.id,
-            message: `Nuevo post publicado en la comunidad: "${post.title}.`,
-            metadata: {
-              title: post.title,
-              message: post.content,
-              type: "post",
-              imageURLs: {
-                community: post.community?.image_url || "",
-                post: post.image_urls?.[0] || "",
-              },
-              slugs: {
-                community: post.community?.slug || "",
-              },
-            },
-          })),
-        });
-      }
-
-      // 4. Enviar WebSocket a usuarios conectados (tiempo real)
-      try {
-        const socketServer = getSocketServer();
-        socketServer.to(immediateUserIds).emit("new_community_post", {
-          type: "community_post",
-          postId: post.id,
-          communityId: post.community_id,
+      await prisma.notification.createMany({
+        data: userIds.map((id) => ({
+          user_id: id,
+          content_type: "POST",
+          content_id: post.id,
           title: post.title,
-          message: `Nuevo post publicado en la comunidad: "${post.title}.`,
-        });
+          message,
+          metadata,
+        })),
+      });
 
-        console.log(
-          `[Socket] Notificación inmediata enviada a ${immediateUserIds.length} usuarios por post en comunidad ${post.community_id}.`,
-        );
-      } catch (socketError) {
-        console.error(
-          "Error al enviar notificación por Socket.io:",
-          socketError,
-        );
-      }
+      const io = getSocketServer();
+      io.to(userIds).emit("new_post", {
+        content_type: NotificationContentType.POST,
+        content_id: post.id,
+        title: post.title,
+        message,
+        metadata,
+        created_at: new Date().toISOString(),
+      });
+    } catch (e: any) {
+      throw new Error(e.message || "Error al enviar notificación de post");
     }
   }
 
   // OBTENER TODOS LOS POSTS
   // =========================================================
-  async getAllPosts(page: number, user_id: string) {
+  async getAll(page: number, user_id: string) {
     try {
       const size = 10;
       const skip = (Math.max(1, page) - 1) * size;
@@ -128,16 +97,19 @@ export class PostService {
 
       const communityIds = relevantCommunities.map((c) => c.id);
 
+      const whereCondition: any = {
+        active: true,
+      };
+
+      if (communityIds.length > 0) {
+        whereCondition.OR = [
+          { community_id: { in: communityIds } },
+          { user_id },
+        ];
+      }
+
       const posts = await prisma.post.findMany({
-        where: {
-          active: true,
-          OR: [
-            ...(communityIds.length > 0
-              ? [{ community_id: { in: communityIds } }]
-              : []),
-            { user_id },
-          ],
-        },
+        where: whereCondition,
         include: {
           community: {
             select: {
@@ -187,8 +159,8 @@ export class PostService {
 
       const data = posts.map((post) => ({
         ...post,
-        userVote: voteMap.get(post.id) || null,
-        hasVoted: voteMap.has(post.id),
+        user_vote: voteMap.get(post.id) || null,
+        has_voted: voteMap.has(post.id),
       }));
 
       const hasMore = data.length === size;
@@ -197,19 +169,14 @@ export class PostService {
         data,
         pagination: { page, hasMore },
       };
-    } catch (e) {
-      return null;
+    } catch (e: any) {
+      throw new Error(e.message || "Error al obtener posts");
     }
   }
 
   // OBTENER POSTS DE LA COMUNIDAD
   // =========================================================
-  async getCommunityPosts(
-    page: number,
-    community_id: string,
-    user_id: string,
-    title?: string,
-  ) {
+  async getCommunityPosts(page: number, community_id: string, user_id: string) {
     try {
       const size = 20;
 
@@ -220,14 +187,6 @@ export class PostService {
         where: {
           community_id,
           active: true,
-          ...(title
-            ? {
-                title: {
-                  contains: title.toString().trim(),
-                  mode: "insensitive",
-                },
-              }
-            : {}),
         },
         orderBy: {
           created_at: "desc",
@@ -303,8 +262,8 @@ export class PostService {
         data: result,
         pagination: { page: currentPage, hasMore },
       };
-    } catch (e) {
-      return null;
+    } catch (e: any) {
+      throw new Error(e.message || "Error al obtener posts de la comunidad");
     }
   }
 
@@ -397,6 +356,14 @@ export class PostService {
         data: data,
         include: {
           community: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              avatar_url: true,
+              slug: true,
+            },
+          },
           recipe: {
             include: {
               steps: true,
@@ -405,6 +372,16 @@ export class PostService {
           },
         },
       });
+
+      if (result) {
+        this.sendNotification(result, result.recipe || undefined).catch(
+          (err) => {
+            throw new Error(
+              err.message || "Error al enviar notificaciones de nuevo post",
+            );
+          },
+        );
+      }
 
       return result;
     } catch (e) {
