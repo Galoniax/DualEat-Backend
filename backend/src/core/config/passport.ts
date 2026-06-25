@@ -49,7 +49,7 @@ export function configurePassport() {
           return done(null, {
             ...user,
             isExisting: !!existingUser,
-            isBusiness: existingUser?.is_business || false,
+            is_business: existingUser?.is_business || false,
           });
         } catch (error) {
           console.error("Error in Google Strategy:", error);

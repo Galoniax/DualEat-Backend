@@ -9,7 +9,7 @@ export interface UserSessionData {
   slug: string;
   role: Role;
   provider: string;
-  isBusiness: boolean;
+  is_business: boolean;
   active: boolean;
   subscription_status: string;
   trial_ends_at: Date | null;

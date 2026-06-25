@@ -83,7 +83,7 @@ export const isAuthenticated = async (
       slug: user.slug,
       role: user.role,
       provider: user.provider,
-      isBusiness: user.is_business,
+      is_business: user.is_business,
       active: user.active,
       verified: user.verified,
       subscription_status: user.subscription_status,

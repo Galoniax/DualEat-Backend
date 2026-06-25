@@ -124,7 +124,7 @@ router.get(
         },
       });
 
-      if (user.isBusiness) {
+      if (user.is_business) {
         const hasPendingLocal = workplaces.some(
           (w) => !(w as any).local?.active,
         );
@@ -176,7 +176,7 @@ router.get(
         console.log("Redirigiendo a dualeat://callback?token=" + accessToken);
         return res.redirect(`dualeat://callback?token=${accessToken}`);
       } else {
-        if (user.isBusiness) {
+        if (user.is_business) {
           if (user.subscription_status === "active") {
             return res.redirect(
               `${process.env.FRONTEND_URL}/business/dashboard`,
