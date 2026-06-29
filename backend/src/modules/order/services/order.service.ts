@@ -34,7 +34,10 @@ export class OrderService {
     return await prisma.order.findMany({
       where: {
         local_id: localId,
-        status: statusEnum,
+        status: {
+          not: OrderStatus.IN_PROGRESS,
+          in: statusEnum ? [statusEnum] : undefined,
+        },
         created_at: {
           gte: from ? new Date(from) : undefined,
           lte: to ? new Date(to) : undefined,
@@ -62,7 +65,7 @@ export class OrderService {
 
   // OBTENER ORDENES DE UN USUARIO
   // =========================================================
-  async getUserOrders(u: string, page: number) {
+  async getUserOrders(u: string, page: number, type?: OrderStatus | "REVIEW") {
     try {
       const size = 10;
       const currentPage = Math.max(1, page);
@@ -71,6 +74,16 @@ export class OrderService {
       const orders = await prisma.order.findMany({
         where: {
           user_id: u,
+          status: {
+            not: OrderStatus.IN_PROGRESS,
+            ...(type !== "REVIEW" && {
+              equals: type as OrderStatus,
+            }),
+          },
+
+          ...(type === "REVIEW" && {
+            review: { is: null },
+          }),
         },
         orderBy: {
           created_at: "desc",
@@ -110,8 +123,8 @@ export class OrderService {
           hasMore,
         },
       };
-    } catch (e) {
-      return null;
+    } catch (e: any) {
+      throw new Error("No se pudieron obtener las órdenes");
     }
   }
 
@@ -122,6 +135,9 @@ export class OrderService {
       const order = await prisma.order.findUnique({
         where: {
           id,
+          status: {
+            not: OrderStatus.IN_PROGRESS,
+          },
         },
         include: {
           order_items: {
@@ -218,7 +234,6 @@ export class OrderService {
     }
   }
 
-  // =========================================================
   // ACTUALIZAR ESTADO DE ORDEN
   // =========================================================
   async updateOrderStatus(

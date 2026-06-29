@@ -1,5 +1,6 @@
 import cron, { ScheduledTask } from "node-cron";
 import { prisma } from "@/core/database/prisma/prisma";
+import { OrderStatus } from "@prisma/client";
 
 export class CleanupJob {
   private isRunning: boolean;
@@ -42,7 +43,7 @@ export class CleanupJob {
 
       const result = await prisma.order.deleteMany({
         where: {
-          status: "IN_PROGRESS",
+          status: OrderStatus.IN_PROGRESS,
           created_at: { lt: expirationLimit },
         },
       });

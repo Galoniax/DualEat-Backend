@@ -10,7 +10,6 @@ export const createReviewSchema = z.object({
       .max(5, "El rating no puede ser mayor a 5"),
     comment: z
       .string()
-      .min(1, "El comentario debe tener al menos 1 caracter")
       .max(300, "El comentario debe tener menos de 300 caracteres")
       .trim()
       .optional(),
@@ -36,7 +35,6 @@ export const updateReviewSchema = z.object({
       .max(5, "El rating no puede ser mayor a 5"),
     comment: z
       .string()
-      .min(1, "El comentario debe tener al menos 1 caracter")
       .max(300, "El comentario debe tener menos de 300 caracteres")
       .trim(),
     order_id: z.coerce.string().nonempty("El ID de la orden es requerido"),

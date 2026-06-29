@@ -113,6 +113,7 @@ export class PostService {
         include: {
           community: {
             select: {
+              id: true,
               name: true,
               image_url: true,
               slug: true,
@@ -336,7 +337,6 @@ export class PostService {
               create: recipe.steps?.map((step) => ({
                 step_number: step.step_number,
                 description: step.description,
-                image_url: step.image_url,
                 estimated_time: step.estimated_time ?? 0,
               })),
             },
@@ -407,7 +407,6 @@ export class PostService {
       }
 
       const isPostCreator = post.user_id === user_id;
-      const isCommunityCreator = post.community?.creator_id === user_id;
 
       const member = await prisma.communityMember.findUnique({
         where: {
@@ -417,9 +416,10 @@ export class PostService {
           },
         },
       });
-      const isModerator = member?.is_moderator || false;
+      const isModerator =
+        member?.is_moderator || post.community.creator_id === user_id;
 
-      if (!isPostCreator && !isCommunityCreator && !isModerator) {
+      if (!isPostCreator && !isModerator) {
         const e = new Error(
           "No tienes permisos para eliminar este post",
         ) as any;

@@ -11,15 +11,13 @@ import { CommentService } from "../services/comment.service";
 import { CommentController } from "../controllers/comment.controller";
 import { validateBody } from "@/core/middlewares/validation";
 import { createPostSchema } from "../types/post.schema";
-import { createCommentSchema } from "../types/comment.schema";
+import { createCommentSchema, updateCommentSchema } from "../types/comment.schema";
+import { requireSubscription } from "@/core/middlewares/requireSubscription";
 
 const upload = multer({
-  limits: { fileSize: 1024 * 1024 * 30 },
+  limits: { fileSize: 1024 * 1024 * 20 },
   fileFilter: (req, file, cb) => {
-    if (
-      file.mimetype.startsWith("image/") ||
-      file.mimetype.startsWith("video/")
-    ) {
+    if (file.mimetype.startsWith("image/")) {
       cb(null, true);
     } else {
       cb(new Error("Tipo de archivo no permitido"));
@@ -39,7 +37,6 @@ const cController = new CommentController(cService);
 // =========================================================
 router.post(
   "/create",
-  upload.none(),
   limiter(false),
   isAuthenticated,
   validateBody(createPostSchema),
@@ -63,7 +60,6 @@ router.post(
 // =========================================================
 router.get(
   "/:community_id/posts",
-  limiter(true),
   isAuthenticated,
   controller.getCommunityPosts.bind(controller),
 );
@@ -101,11 +97,19 @@ router.get(
 // =========================================================
 router.post(
   "/comment",
-  upload.none(),
   limiter(false),
   isAuthenticated,
   validateBody(createCommentSchema),
   cController.create.bind(cController),
+);
+
+router.patch(
+  "/comment/:comment_id",
+  limiter(false),
+  isAuthenticated,
+  requireSubscription,
+  validateBody(updateCommentSchema),
+  cController.update.bind(cController),
 );
 
 // 8. Eliminar comentario

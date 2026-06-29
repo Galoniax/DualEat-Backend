@@ -5,8 +5,6 @@ import { CommentDTO } from "@/shared/interfaces/dto/post.dto";
 export class CommentController {
   constructor(private commentService: CommentService) {}
 
-  // NOTIFICAR AL USUARIO DEL POST + COMENTARIO SI HAY
-
   // CREAR COMENTARIO
   // =========================================================
   create = async (req: Request, res: Response) => {
@@ -119,6 +117,43 @@ export class CommentController {
       return res
         .status(500)
         .json({ success: false, message: "Error interno del servidor" });
+    }
+  };
+
+  // ACTUALIZAR COMENTARIO
+  // =========================================================
+  update = async (req: Request, res: Response) => {
+    const { content } = req.body as { content: string };
+
+
+    const { comment_id } = req.params as { comment_id: string };
+    const user_id = (req as any).user?.id || req.body.user_id;
+
+    if (!comment_id) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Id no encontrado" });
+    }
+
+    try {
+      const result = await this.commentService.update(
+        comment_id,
+        String(user_id),
+        content,
+      );
+
+      if (!result) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Comentario no encontrado" });
+      }
+
+      return res.status(200).json({ success: true, data: result });
+    } catch (e: any) {
+      return res.status(400).json({
+        success: false,
+        message: e.message,
+      });
     }
   };
 

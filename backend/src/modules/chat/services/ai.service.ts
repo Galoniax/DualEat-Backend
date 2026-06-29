@@ -4,8 +4,8 @@ export class AIService {
   private static instance: AIService;
   private groq: Groq;
 
-  private readonly INTENT_MODEL = "llama-3.1-8b-instant";
-  private readonly CHAT_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+  private readonly INTENT_MODEL = process.env.INTENT_MODEL || "openai/gpt-oss-20b";
+  private readonly CHAT_MODEL = process.env.CHAT_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct";
 
   private constructor() {
     this.groq = new Groq({

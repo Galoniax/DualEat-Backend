@@ -4,7 +4,7 @@ import { CartService } from "@/modules/order/services/cart.service";
 import { prisma } from "@/core/database/prisma/prisma";
 import { NotificationService } from "@/modules/notification/services/notification.service";
 import { getSocketServer } from "@/core/config/socket.config";
-import { User } from "@prisma/client";
+import { OrderStatus, User } from "@prisma/client";
 import console from "console";
 
 const notificationService = new NotificationService();
@@ -44,7 +44,7 @@ export class OrderController {
   // =========================================================
   getUserOrders = async (req: Request, res: Response) => {
     const user_id = (req as any).user?.id || req.body.user_id;
-    const { page } = req.query;
+    const { page, type } = req.query;
 
     if (typeof page !== "string" || isNaN(Number(page))) {
       return res.status(400).json({
@@ -56,6 +56,7 @@ export class OrderController {
       const orders = await this.orderService.getUserOrders(
         String(user_id),
         Number(page),
+        type as OrderStatus | "REVIEW",
       );
 
       if (!orders) {
@@ -66,10 +67,11 @@ export class OrderController {
       }
 
       return res.status(200).json({ success: true, ...orders });
-    } catch (e) {
-      return res
-        .status(500)
-        .json({ success: false, message: "Error interno del servidor" });
+    } catch (e: any) {
+      return res.status(500).json({
+        success: false,
+        message: e.message || "Error interno del servidor",
+      });
     }
   };
 

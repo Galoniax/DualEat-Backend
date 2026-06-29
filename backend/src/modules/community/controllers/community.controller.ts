@@ -162,12 +162,11 @@ export class CommunityController {
     }
 
     try {
-      const exists = await this.communityService.getByName(name.trim());
+      const result = await this.communityService.getByName(name.trim());
 
       return res.status(200).json({
         success: true,
-        available: !exists,
-        message: exists ? "El nombre ya está en uso" : "Nombre disponible",
+        data: result,
       });
     } catch (e: any) {
       return res.status(500).json({

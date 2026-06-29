@@ -3,6 +3,7 @@ import AuthSessionService from "@/modules/auth/services/auth-session.service";
 import { Request, Response, NextFunction } from "express";
 import { prisma } from "@/core/database/prisma/prisma";
 import { UserSessionData } from "@/shared/interfaces/dto/user.dto";
+import { DEFAULT_AVATAR } from "@/core/config/config";
 
 const authSessionService = AuthSessionService.getInstance();
 
@@ -88,7 +89,7 @@ export const isAuthenticated = async (
       verified: user.verified,
       subscription_status: user.subscription_status,
       trial_ends_at: user.trial_ends_at,
-      avatar_url: user.avatar_url,
+      avatar_url: user.avatar_url ?? DEFAULT_AVATAR,
       notificationsPref: user.notificationsPref,
       workplaces: workplaceData,
       deviceId: sessionMetadata.deviceId,

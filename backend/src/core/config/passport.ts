@@ -1,6 +1,7 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { UserService } from "@/modules/auth/services/user.service";
+import { DEFAULT_AVATAR } from "./config";
 
 export function configurePassport() {
   const userService = new UserService();
@@ -33,7 +34,7 @@ export function configurePassport() {
             googleId: profile.id,
             email: profile.emails[0].value.toLowerCase(),
             name: profile.displayName,
-            avatar_url: profile.photos?.[0]?.value || null,
+            avatar_url: profile.photos?.[0]?.value || DEFAULT_AVATAR,
             provider: "google",
           };
           const existingUser = await userService.getByEmail(googleUser.email);

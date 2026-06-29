@@ -7,19 +7,25 @@ export class ReviewService {
   // OBTENER RESEÑAS DE UN LOCAL
   // =========================================================
   async getByLocalId(local_id: string) {
-    return await prisma.localReview.findMany({
-      where: { local_id: local_id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+    try {
+      const result = await prisma.localReview.findMany({
+        where: { local_id: local_id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
         },
-      },
-      orderBy: { created_at: "desc" },
-    });
+        orderBy: { created_at: "desc" },
+      });
+
+      return result;
+    } catch (e: any) {
+      throw new Error("No se pudieron obtener las reseñas");
+    }
   }
 
   // CREAR RESEÑA
@@ -44,7 +50,7 @@ export class ReviewService {
     });
 
     if (!order) {
-      e = new Error("La orden no existe.");
+      e = new Error("La orden no existe o no ha sido completada.");
       e.status = 404;
       throw e;
     }

@@ -7,3 +7,5 @@ export const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY || "";
 export const SECRET_KEY = process.env.JWT_SECRET || "clavePorDefecto";
 
 export const API_PREFIX = "/api";
+
+export const DEFAULT_AVATAR = process.env.USER_DEFAULT || "https://placehold.co/100x100";

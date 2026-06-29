@@ -379,6 +379,33 @@ export class CommentService {
     }
   }
 
+  // ACTUALIZAR COMENTARIO
+  // =========================================================
+  async update(comment_id: string, user_id: string, content: string) {
+    try {
+      const comment = await prisma.postComment.findUnique({
+        where: { id: comment_id },
+      });
+
+      if (!comment) {
+        throw new Error("El comentario no existe o ya fue eliminado");
+      }
+
+      if (comment.user_id !== user_id) {
+        throw new Error("No tienes permisos para editar este comentario");
+      }
+
+      const result = await prisma.postComment.update({
+        where: { id: comment_id },
+        data: { content: content, edited: true },
+      });
+
+      return result;
+    } catch (e) {
+      throw e;
+    }
+  }
+
   // ELIMINAR COMENTARIO
   // =========================================================
   async delete(comment_id: string, requester_user_id: string) {
@@ -404,10 +431,25 @@ export class CommentService {
 
       const commentsToSubtract = 1 + comment._count.replies;
 
+      const replies = await prisma.postComment.findMany({
+        where: { parent_comment_id: comment_id },
+        select: { id: true },
+      });
+
+      const IDs = [comment_id, ...replies.map((r) => r.id)];
+
       const result = await prisma.$transaction(async (tx) => {
+        await tx.vote.deleteMany({
+          where: {
+            content_id: { in: IDs },
+            content_type: "COMMENT",
+          },
+        });
+
         const deletedComment = await tx.postComment.delete({
           where: { id: comment_id },
         });
+
         await tx.post.update({
           where: { id: comment.post_id },
           data: {

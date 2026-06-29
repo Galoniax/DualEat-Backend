@@ -6,7 +6,6 @@ import { uploadFiles, deleteFiles } from "@/core/config/supabase";
 import { RecipeDTO } from "@/shared/interfaces/dto/recipe.dto";
 import { PostDTO } from "@/shared/interfaces/dto/post.dto";
 
-import sanitizeHtml from "sanitize-html";
 import { optimize } from "@/shared/utils/sharp";
 
 export class PostController {
@@ -138,12 +137,7 @@ export class PostController {
       if (recipe?.main_image) {
         urls.push(recipe.main_image);
       }
-      if (recipe?.steps?.length) {
-        recipe.steps.forEach((step) => {
-          if (step.image_url) urls.push(step.image_url);
-        });
-      }
-
+  
       if (urls.length > 0) {
         deleteFiles(urls).catch((err) =>
           console.error("Error crítico al borrar imágenes huérfanas:", err),
@@ -207,7 +201,7 @@ export class PostController {
     try {
       const uploadedUrls: {
         post_images?: string[];
-        recipe_main_image?: string;
+        main_image?: string;
       } = {};
 
       console.log(files);
@@ -223,7 +217,7 @@ export class PostController {
         const optimized = await optimize(files["main_image"]);
 
         const url = await uploadFiles(optimized[0], "recipes", "recipe_main");
-        uploadedUrls.recipe_main_image = url as string;
+        uploadedUrls.main_image = url as string;
       }
 
       return res.status(200).json({

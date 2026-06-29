@@ -28,7 +28,7 @@ export const createPostSchema = z.object({
       main_image: z.url("La imagen debe ser una URL válida"),
       total_time: z.coerce
         .number()
-        .positive("El tiempo total debe ser positivo")
+        .nonnegative("El tiempo total no puede ser negativo")
         .optional(),
       steps: z.array(
         z.object({
@@ -44,7 +44,7 @@ export const createPostSchema = z.object({
           estimated_time: z.coerce
             .number()
             .int()
-            .positive("El tiempo estimado debe ser positivo")
+            .nonnegative("El tiempo estimado no puede ser negativo")
             .default(0),
         }),
       ),

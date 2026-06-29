@@ -18,9 +18,10 @@ export class RecipeController {
 
       return res.status(200).json({ success: true, data: ingredients });
     } catch (e: any) {
-      return res
-        .status(500)
-        .json({ success: false, message: "Error interno del servidor" });
+      return res.status(500).json({
+        success: false,
+        message: e.message || "Error interno del servidor",
+      });
     }
   };
 

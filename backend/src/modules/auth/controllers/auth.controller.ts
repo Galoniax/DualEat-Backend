@@ -1,6 +1,6 @@
 import { UserService } from "../services/user.service";
 import { Request, Response } from "express";
-import { SECRET_KEY } from "@/core/config/config";
+import { DEFAULT_AVATAR, SECRET_KEY } from "@/core/config/config";
 
 import { prisma } from "@/core/database/prisma/prisma";
 
@@ -22,9 +22,10 @@ import {
   verifyTempToken,
 } from "@/shared/utils/jwt";
 import AuthSessionService from "../services/auth-session.service";
-import { generateUniqueSlug } from "@/shared/utils/sluglify";
+import { generateSlug, generateUniqueSlug } from "@/shared/utils/sluglify";
 import { optimize } from "@/shared/utils/sharp";
 import { deleteFiles, uploadFiles } from "@/core/config/supabase";
+import { Local, Role } from "@prisma/client";
 
 export class AuthController {
   private readonly authSessionService = AuthSessionService.getInstance();
@@ -33,7 +34,7 @@ export class AuthController {
 
   // INICIO DE SESIÓN
   // =========================================================
-  async login(req: Request, res: Response) {
+  login = async (req: Request, res: Response) => {
     try {
       const { email, password, remember, token, deviceId, platform } = req.body;
 
@@ -129,8 +130,8 @@ export class AuthController {
         const hasAdminRole = localUserAssociations.some(
           (lu) => lu.role === "admin",
         );
-        const isOwner = (user as any).is_business;
-        const isSuperAdmin = user.role === "ADMIN";
+        const isOwner = user.is_business;
+        const isSuperAdmin = user.role === Role.ADMIN;
 
         if (hasStaffRole && !hasAdminRole && !isOwner && !isSuperAdmin) {
           return res.status(403).json({
@@ -148,7 +149,7 @@ export class AuthController {
         });
 
         const hasPendingLocal = userLocals.some(
-          (lw) => (lw.local as any) && !(lw.local as any).active,
+          (lw) => (lw.local as Local) && !lw.local.active,
         );
 
         if (hasPendingLocal) {
@@ -200,6 +201,8 @@ export class AuthController {
         `Login exitoso. User: ${email}, Device: ${deviceId}, Remember: ${remember}`,
       );
 
+      const { password_hash, reset_code, ...data } = user;
+
       // 6. RESPUESTA FINAL
       // ============================================================
       return res
@@ -209,7 +212,7 @@ export class AuthController {
           success: true,
           message: "Login exitoso",
           token: accessToken,
-          user: user,
+          user: data,
         });
     } catch (e: any) {
       return res.status(500).json({
@@ -217,11 +220,11 @@ export class AuthController {
         message: e.message || "Error interno del servidor",
       });
     }
-  }
+  };
 
   // REGISTRO INICIAL
   // =========================================================
-  async register(req: Request, res: Response) {
+  register = async (req: Request, res: Response) => {
     try {
       // ==================== VALIDACIÓN DE INPUTS =====================
       const { email, password, deviceId } = req.body;
@@ -273,11 +276,11 @@ export class AuthController {
         message: "Error interno del servidor",
       });
     }
-  }
+  };
 
   // COMPLETAR PERFIL Y CREAR USUARIO
   // =========================================================
-  async completeProfile(req: Request, res: Response) {
+  completeProfile = async (req: Request, res: Response) => {
     try {
       const { name, foodPreferences, communityPreferences, tempToken } =
         req.body as RegisterStepTwoDto & { tempToken: string };
@@ -301,17 +304,12 @@ export class AuthController {
       }
 
       // 2. PREPARACIÓN DE DATOS DEL USUARIO
-      const model = prisma.user;
-
-      const userSlug = await generateUniqueSlug(name.trim(), model);
-
-      const DEFAULT_AVATAR =
-        "https://ohhvldagwoycuifwhgtc.supabase.co/storage/v1/object/public/assets/DefaultProfile.png";
+      const slug = generateSlug(name.trim());
 
       const userDataToCreate: BasicCreateDTO = {
         email: tempData.email,
         name: name.trim(),
-        slug: String(userSlug),
+        slug: slug,
         password_hash: tempData.password_hash || undefined,
         avatar_url: tempData.avatar_url || DEFAULT_AVATAR,
         provider: tempData.provider || "local",
@@ -353,13 +351,15 @@ export class AuthController {
         maxAge: 7 * 24 * 60 * 60 * 1000,
       };
 
+      const { password_hash, reset_code, ...data } = user;
+
       return res
         .cookie("accessToken", accessToken, cookieOptions)
         .status(201)
         .json({
           success: true,
           message: "Registro completado exitosamente",
-          user: user,
+          user: data,
           token: accessToken,
         });
     } catch (e: any) {
@@ -368,11 +368,11 @@ export class AuthController {
         message: e.message || "Error interno al completar el perfil",
       });
     }
-  }
+  };
 
   // COMPLETAR PERFIL (LOCAL + USUARIO ADMIN)
   // =========================================================
-  async completeLocalProfile(req: Request, res: Response) {
+  completeLocalProfile = async (req: Request, res: Response) => {
     try {
       const {
         tempToken,
@@ -464,11 +464,11 @@ export class AuthController {
         message: "Error interno al completar el perfil de local",
       });
     }
-  }
+  };
 
   // LOGOUT
   // =========================================================
-  async logout(req: Request, res: Response) {
+  logout = async (req: Request, res: Response) => {
     try {
       let token = req.cookies.accessToken;
 
@@ -514,11 +514,11 @@ export class AuthController {
         message: "Error al cerrar sesión",
       });
     }
-  }
+  };
 
   // CERRAR TODAS LAS SESIONES
   // =========================================================
-  async logoutAll(req: Request, res: Response) {
+  logoutAll = async (req: Request, res: Response) => {
     try {
       const user_id = (req as any).user?.id;
       if (user_id) {
@@ -542,11 +542,11 @@ export class AuthController {
         message: "Error al cerrar todas las sesiones",
       });
     }
-  }
+  };
 
   // OBTENER USUARIO POR ID
   // =========================================================
-  async getById(req: Request, res: Response) {
+  getById = async (req: Request, res: Response) => {
     try {
       const { user_id } = req.params;
 
@@ -565,9 +565,12 @@ export class AuthController {
           message: "Usuario no encontrado",
         });
       }
+
+      const { password_hash, reset_code, ...data } = user;
+
       return res.status(200).json({
         success: true,
-        data: user,
+        data: data,
       });
     } catch (e: any) {
       return res.status(500).json({
@@ -575,11 +578,11 @@ export class AuthController {
         message: e.message || "Error interno en el servidor",
       });
     }
-  }
+  };
 
   // OBTENER POSTS, RECETAS, COMMENTARIOS, RESEÑAS DE UN USUARIO
   // =========================================================
-  async getUserSearch(req: Request, res: Response) {
+  getUserSearch = async (req: Request, res: Response) => {
     const { user_id } = req.params;
 
     const { query, tab, page } = req.query as {
@@ -615,12 +618,19 @@ export class AuthController {
       success: true,
       ...result,
     });
-  }
+  };
 
   // ACTUALIZAR PERFIL (STAFF / USER)
   // =========================================================
-  async update(req: Request, res: Response) {
-    const { name, avatar_url, currentPassword, newPassword, foodPreferences, communityPreferences } = req.body;
+  update = async (req: Request, res: Response) => {
+    const {
+      name,
+      avatar_url,
+      currentPassword,
+      newPassword,
+      foodPreferences,
+      communityPreferences,
+    } = req.body;
 
     const user_id = (req as any).user?.id || req.body.user_id;
     try {
@@ -688,7 +698,7 @@ export class AuthController {
         message: e.message || "Error interno del servidor",
       });
     }
-  }
+  };
 
   // SUBIR IMÁGENES
   // =========================================================
@@ -730,6 +740,7 @@ export class AuthController {
 
       return res.status(200).json({
         success: true,
+        message: "Imagen subida correctamente",
         urls: url,
       });
     } catch (e: any) {

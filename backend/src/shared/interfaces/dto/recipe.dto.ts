@@ -15,7 +15,6 @@ export interface RecipeStepDTO {
   step_number: number;
   description: string;
   estimated_time: number | null;
-  image_url: string;
 }
 
 export interface RecipeIngredientDTO {

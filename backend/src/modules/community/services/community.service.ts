@@ -133,16 +133,18 @@ export class CommunityService {
       let receives_notifications: string | null = null;
 
       if (user_id) {
-        const member = await prisma.communityMember.findFirst({
+        const member = await prisma.communityMember.findUnique({
           where: {
-            community_id: community.id,
-            user_id,
+            user_id_community_id: {
+              user_id: user_id,
+              community_id: community.id,
+            },
           },
         });
 
         if (member) {
           isMember = true;
-          isModerator = member.is_moderator;
+          isModerator = member.is_moderator || community.creator_id === user_id;
           receives_notifications = member.receives_notifications;
         }
       }
@@ -162,7 +164,7 @@ export class CommunityService {
   // =========================================================
   async getByName(name: string) {
     try {
-      const community = await prisma.community.findFirst({
+      const communities = await prisma.community.findMany({
         where: {
           name: { contains: name, mode: "insensitive" },
           active: true,
@@ -183,9 +185,9 @@ export class CommunityService {
         },
       });
 
-      return community;
+      return communities;
     } catch (e: any) {
-      throw new Error(`Error al obtener comunidad: ${e}`);
+      throw new Error(`Error al obtener comunidades`);
     }
   }
 

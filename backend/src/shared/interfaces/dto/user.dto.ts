@@ -13,7 +13,7 @@ export interface UserSessionData {
   active: boolean;
   subscription_status: string;
   trial_ends_at: Date | null;
-  avatar_url: string | null;
+  avatar_url: string;
   verified: boolean;
   notificationsPref: NotificationFrequency;
   workplaces?: Workplace[]; 
