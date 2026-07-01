@@ -74,45 +74,6 @@ services:
       - dualeat-network
     restart: unless-stopped
 
-  # ===== BACKEND =====
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    platform: linux/amd64
-    container_name: dualeat_backend
-    ports:
-      - "3000:3000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      - NODE_ENV=development
-      - DATABASE_URL=postgresql://DualEat:DualEat21102504@postgres:5432/DualEat
-      - FRONTEND_URL=http://localhost:5173
-      - MOBILE_URL=http://localhost:8082
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    env_file:
-      - ./backend/.env
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
-      - backend_logs:/app/logs # Para logs persistentes
-    networks:
-      - dualeat-network
-    command:
-      ["sh", "-c", "npx prisma db push --accept-data-loss && npm run dev"]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    restart: unless-stopped
-
 networks:
   dualeat-network:
     driver: bridge
@@ -121,6 +82,3 @@ volumes:
   postgres_data:
   pgadmin_data:
   redis_data:
-  backend_logs:
-  #ollama_data:
-  #ollama_models:

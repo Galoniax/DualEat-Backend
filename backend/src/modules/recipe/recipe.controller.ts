@@ -81,6 +81,7 @@ export class RecipeController {
     try {
       const recipes = await this.recipeService.searchRecipes(
         String(query),
+        null,
         Number(page),
       );
       if (!recipes) {

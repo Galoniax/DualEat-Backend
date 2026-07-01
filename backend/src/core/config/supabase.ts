@@ -38,11 +38,9 @@ export async function uploadFiles(
 
     while (attempts < retries) {
       try {
-        const fileBlob = new Blob([file.buffer], { type: file.mimetype });
-
         const { error } = await supabaseAdmin.storage
           .from(bucket)
-          .upload(path, fileBlob, {
+          .upload(path, file.buffer, {
             contentType: file.mimetype,
             upsert: true,
           });

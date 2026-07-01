@@ -91,7 +91,12 @@ export const isAuthenticated = async (
       trial_ends_at: user.trial_ends_at,
       avatar_url: user.avatar_url ?? DEFAULT_AVATAR,
       notificationsPref: user.notificationsPref,
+
       workplaces: workplaceData,
+
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+
       deviceId: sessionMetadata.deviceId,
     };
 

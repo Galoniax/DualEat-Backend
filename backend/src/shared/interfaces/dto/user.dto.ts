@@ -16,10 +16,14 @@ export interface UserSessionData {
   avatar_url: string;
   verified: boolean;
   notificationsPref: NotificationFrequency;
+
   workplaces?: Workplace[]; 
 
-  loginAt?: Date;
-  lastActivity?: Date;
+  created_at: Date,
+  updated_at: Date,
+
+  loginAt?: Date,
+  lastActivity?: Date,
   deviceId?: string;
 }
 

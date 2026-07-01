@@ -4,7 +4,7 @@ import { FoodService } from "../../menu/services/food.service";
 
 interface preferencesDTO {
   filter: "distancia" | "descuento";
-  categorias: number[];
+  categorias: string[];
   horario: boolean;
   bestSellers: boolean;
 }
@@ -64,7 +64,6 @@ export class DiscoveryService {
         latitude: { gte: latMin, lte: latMax },
         longitude: { gte: lonMin, lte: lonMax },
         active: true,
-
 
         ...queryFilter,
         schedules: preferencesDTO.horario
@@ -148,24 +147,24 @@ export class DiscoveryService {
     return locals;
   }
 
-
   private formatFoodItem(food: any) {
-  // Extraemos la promoción si existe y está activa
-  const promo = food.promotions;
-  const appliedDiscountPct = promo?.active && promo?.discount_pct > 0 ? promo.discount_pct : 0;
-  
-  // Calculamos el precio final
-  const finalPrice = food.price - (food.price * (appliedDiscountPct / 100));
+    // Extraemos la promoción si existe y está activa
+    const promo = food.promotions;
+    const appliedDiscountPct =
+      promo?.active && promo?.discount_pct > 0 ? promo.discount_pct : 0;
 
-  return {
-    ...food,
-    original_price: food.price,
-    price: finalPrice,
-    discount_pct_applied: appliedDiscountPct > 0 ? appliedDiscountPct : null,
-    ends_at: promo?.ends_at || null,
-    sales_count: food._count?.order_items || 0,
-  };
-};
+    // Calculamos el precio final
+    const finalPrice = food.price - food.price * (appliedDiscountPct / 100);
+
+    return {
+      ...food,
+      original_price: food.price,
+      price: finalPrice,
+      discount_pct_applied: appliedDiscountPct > 0 ? appliedDiscountPct : null,
+      ends_at: promo?.ends_at || null,
+      sales_count: food._count?.order_items || 0,
+    };
+  }
 
   async getHomeFeed(lat: number, lng: number, user_id: string) {
     const offset = 40000 / 111000;
@@ -208,6 +207,7 @@ export class DiscoveryService {
           include: {
             local: {
               select: {
+                id:true,
                 name: true,
                 image_url: true,
                 average_rating: true,
@@ -238,6 +238,7 @@ export class DiscoveryService {
           include: {
             local: {
               select: {
+                id:true,
                 name: true,
                 image_url: true,
                 average_rating: true,
@@ -245,7 +246,6 @@ export class DiscoveryService {
                 latitude: true,
                 longitude: true,
               },
-
             },
             _count: {
               select: { order_items: true },
@@ -273,6 +273,7 @@ export class DiscoveryService {
           include: {
             local: {
               select: {
+                id:true,
                 name: true,
                 image_url: true,
                 average_rating: true,
@@ -300,6 +301,7 @@ export class DiscoveryService {
           include: {
             local: {
               select: {
+                id:true,
                 name: true,
                 image_url: true,
                 average_rating: true,
@@ -335,9 +337,12 @@ export class DiscoveryService {
     const response: any = {};
 
     if (parati.length > 0) response.para_ti = parati.map(this.formatFoodItem);
-    if (ofertasHot.length > 0) response.ofertas_hot = ofertasHot.map(this.formatFoodItem);
-    if (promociones.length > 0) response.promociones = promociones.map(this.formatFoodItem);
-    if (masPedidos.length > 0) response.mas_pedidos = masPedidos.map(this.formatFoodItem);
+    if (ofertasHot.length > 0)
+      response.ofertas_hot = ofertasHot.map(this.formatFoodItem);
+    if (promociones.length > 0)
+      response.promociones = promociones.map(this.formatFoodItem);
+    if (masPedidos.length > 0)
+      response.mas_pedidos = masPedidos.map(this.formatFoodItem);
     if (mejoresRestaurantes.length > 0)
       response.restaurantes_destacados = mejoresRestaurantes;
 
