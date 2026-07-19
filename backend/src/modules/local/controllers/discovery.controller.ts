@@ -53,8 +53,6 @@ export class DiscoveryController {
         String(user_id),
       );
 
-      console.log(JSON.stringify(homeFeed, null, 2));
-
       return res.status(200).json({ success: true, data: homeFeed });
     } catch (e) {
       return res

@@ -106,14 +106,15 @@ export class OrderController {
   // PRE-PURCHASE
   // =========================================================
   prePurchase = async (req: Request, res: Response) => {
-    const { items, local_id, platform } = req.body as {
+    const { items, local_id, redirect_url } = req.body as {
       items: { food_id: string; quantity: number }[];
       local_id: string;
-      platform?: "mobile" | "web";
+      redirect_url: string;
     };
-    const user = ((req as any).user || req.body.user) as User;
 
-    if (!user) {
+    const user_id = (req as any).user?.id;
+
+    if (!user_id) {
       return res.status(401).json({
         success: false,
         message: "No autorizado. Se requiere un usuario válido.",
@@ -152,25 +153,55 @@ export class OrderController {
         };
       });
 
-      // Obtener la url del backend dinámicamente para redirecciones
-      const protocol = req.headers["x-forwarded-proto"] || req.protocol;
-      const host = req.headers["x-forwarded-host"] || req.get("host");
-      const backendBaseUrl = `${protocol}://${host}`;
 
       // 3. Crear la orden y la preferencia de Mercado Pago
       const result = await this.orderService.prePurchase(
         local_id,
-        user,
+        String(user_id),
         checkoutItems,
-        platform,
-        backendBaseUrl,
+        redirect_url,
       );
 
       console.log(result);
 
       return res.status(200).json({
         success: true,
-        result,
+        data: result,
+        message: "Precompra creada con éxito. Redirigiendo a checkout.",
+      });
+    } catch (e: any) {
+      return res.status(e.status || 500).json({
+        success: false,
+        message: e.message || "Error interno en el servidor",
+      });
+    }
+  };
+
+  purchase = async (req: Request, res: Response) => {
+    const { order_id, redirect_url } = req.body as {
+      order_id: string;
+      redirect_url: string;
+    };
+
+    const user_id = (req as any).user?.id;
+
+    if (!user_id) {
+      return res.status(401).json({
+        success: false,
+        message: "No autorizado. Se requiere un usuario válido.",
+      });
+    }
+
+    try {
+      const result = await this.orderService.purchase(
+        String(user_id),
+        order_id,
+        redirect_url,
+      );
+
+      return res.status(200).json({
+        success: true,
+        data: result,
         message: "Precompra creada con éxito. Redirigiendo a checkout.",
       });
     } catch (e: any) {

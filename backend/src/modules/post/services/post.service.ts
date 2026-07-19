@@ -14,6 +14,7 @@ import {
   VoteType,
   Prisma,
   NotificationContentType,
+  NotificationFrequency,
 } from "@prisma/client";
 
 export class PostService {
@@ -30,9 +31,9 @@ export class PostService {
         where: {
           community_id: post.community_id,
           user_id: { not: post.user_id },
-          receives_notifications: "ALWAYS",
+          receives_notifications: NotificationFrequency.ALWAYS,
           user: {
-            notificationsPref: "ALWAYS",
+            notificationsPref: NotificationFrequency.ALWAYS,
           },
         },
         select: { user_id: true },
@@ -66,6 +67,7 @@ export class PostService {
 
       const io = getSocketServer();
       io.to(userIds).emit("new_post", {
+        id: crypto.randomUUID(),
         content_type: NotificationContentType.POST,
         content_id: post.id,
         title: post.title,
@@ -85,17 +87,25 @@ export class PostService {
       const size = 10;
       const skip = (Math.max(1, page) - 1) * size;
 
-      const relevantCommunities = await prisma.community.findMany({
-        where: {
-          OR: [
-            { members: { some: { user_id } } },
-            { tags: { some: { user_preferences: { some: { user_id } } } } },
-          ],
-        },
-        select: { id: true },
-      });
+      const [memberCommunities, preferredCommunities] = await Promise.all([
+        prisma.communityMember.findMany({
+          where: { user_id },
+          select: { community_id: true },
+        }),
+        prisma.userPreference.findMany({
+          where: { user_id },
+          select: {
+            communityTag: { select: { communities: { select: { id: true } } } },
+          },
+        }),
+      ]);
 
-      const communityIds = relevantCommunities.map((c) => c.id);
+      const communityIds = [
+        ...memberCommunities.map((m) => m.community_id),
+        ...preferredCommunities.flatMap(
+          (p) => p.communityTag?.communities.map((c) => c.id) || [],
+        ),
+      ];
 
       const whereCondition: any = {
         active: true,
@@ -124,6 +134,7 @@ export class PostService {
               id: true,
               name: true,
               avatar_url: true,
+              subscription_status: true,
               slug: true,
             },
           },
@@ -223,6 +234,7 @@ export class PostService {
               name: true,
               avatar_url: true,
               slug: true,
+              subscription_status: true,
             },
           },
         },
@@ -278,7 +290,13 @@ export class PostService {
           community: true,
           recipe: true,
           user: {
-            select: { id: true, name: true, slug: true, avatar_url: true },
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              avatar_url: true,
+              subscription_status: true,
+            },
           },
           _count: {
             select: { comments: true },
@@ -382,6 +400,68 @@ export class PostService {
           },
         );
       }
+
+      return result;
+    } catch (e) {
+      throw e;
+    }
+  }
+
+  // ACTUALIZAR POST
+  // =========================================================
+  async update(user_id: string, post: Partial<PostDTO>) {
+    try {
+      const exist = await prisma.post.findUnique({
+        where: { id: post.id },
+        include: {
+          community: true,
+        },
+      });
+
+      if (!exist) {
+        const e = new Error("Post no encontrado") as any;
+        e.status = 404;
+        throw e;
+      }
+
+      const isPostCreator = exist.user_id === user_id;
+
+      const member = await prisma.communityMember.findUnique({
+        where: {
+          user_id_community_id: {
+            user_id: user_id,
+            community_id: exist.community_id,
+          },
+        },
+      });
+      const isModerator =
+        member?.is_moderator || exist.community.creator_id === user_id;
+
+      if (!isPostCreator && !isModerator) {
+        const e = new Error("No tienes permisos para editar este post") as any;
+        e.status = 403;
+        throw e;
+      }
+
+      const data: Prisma.PostUpdateInput = {
+        edited: true,
+      };
+
+      if (post.title !== undefined) {
+        data.title = post.title;
+        data.slug = generateSlug(post.title);
+      }
+      if (post.content !== undefined) {
+        data.content = post.content;
+      }
+      if (post.image_urls !== undefined) {
+        data.image_urls = exist.image_urls.concat(post.image_urls);
+      }
+
+      const result = await prisma.post.update({
+        where: { id: post.id },
+        data: data,
+      });
 
       return result;
     } catch (e) {

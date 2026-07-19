@@ -53,11 +53,12 @@ export class SubscriptionController {
   create = async (req: Request, res: Response) => {
     const { plan } = req.body;
 
-    const user = ((req as any).user || req.body.user) as User;
+    const user_id = (req as any).user?.id;
 
-    if (!user || !plan) {
+    if (!user_id || !plan) {
       return res.status(400).json({
-        message: "Faltan datos requeridos: userId, plan, o payerEmail.",
+        success: false,
+        message: "Faltan datos requeridos",
       });
     }
 
@@ -75,11 +76,7 @@ export class SubscriptionController {
       const host = req.headers["x-forwarded-host"] || req.get("host");
       const backendBaseUrl = `${protocol}://${host}`;
 
-      const checkoutUrl = await this.service.create(
-        user,
-        plan,
-        backendBaseUrl,
-      );
+      const checkoutUrl = await this.service.create(String(user_id), plan, backendBaseUrl);
 
       return res.status(200).json({
         success: true,

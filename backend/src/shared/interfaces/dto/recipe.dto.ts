@@ -5,7 +5,6 @@ export interface RecipeDTO {
   description: string;
   total_time?: number;
   main_image: string;
-  user_id: string;
 
   ingredients: RecipeIngredientDTO[];
   steps: RecipeStepDTO[];

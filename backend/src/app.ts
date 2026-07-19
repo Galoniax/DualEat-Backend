@@ -39,6 +39,8 @@ import { SubscriptionCron } from "@/core/jobs/subscription.cron";
 // Inicialización de variables de entorno y aplicación
 dotenv.config();
 const app = express();
+
+app.set("trust proxy", 1); // Confiar en el proxy de Railway para rate limiting
 const PORT = process.env.PORT || 3000;
 
 // 2.1. CREACIÓN DEL SERVIDOR HTTP (Requerido por Socket.io)

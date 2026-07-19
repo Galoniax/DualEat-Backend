@@ -18,19 +18,19 @@ export class ChatSessionService {
 
   // OBTENER CHAT POR ID
   // =========================================================
-  async getById(u_id: string, c_id: string): Promise<ChatSession | null> {
+  async getById(u_id: string, c_id: string): Promise<ChatSession> {
     try {
       const sessionKey = `${this.SESSION_PREFIX}${u_id}/${c_id}`;
       const data = await this.sessionService.get(sessionKey);
 
       if (!data) {
-        return null;
+        throw new Error("Chat no encontrado");
       }
 
       const chatData: ChatSession = JSON.parse(data);
       return chatData;
-    } catch (e) {
-      return null;
+    } catch (e: any) {
+      throw new Error("Ocurrió un error interno al obtener el chat.");
     }
   }
 
@@ -98,16 +98,24 @@ export class ChatSessionService {
 
     try {
       const redisKey = `${this.SESSION_PREFIX}${u_id}/${chat.chat_id}`;
-      let ttl = 3 * 24 * 60 * 60;
+      let ttl = 2 * 24 * 60 * 60;
 
       const data = await this.sessionService.get(redisKey);
+
+      let chatData: ChatSession;
 
       if (data) {
         // CASO A: EL CHAT YA EXISTE (Actualizamos)
         // ==========================================
-        const chatData: ChatSession = JSON.parse(data);
+        chatData = JSON.parse(data);
 
         chatData.messages.push(...chat.messages);
+
+        // Limitar a los últimos 50 mensajes
+        if (chatData.messages.length > 50) {
+          chatData.messages = chatData.messages.slice(-50);
+        }
+
         chatData.lastActivity = new Date().toISOString();
 
         if (chat.title) {
@@ -117,15 +125,10 @@ export class ChatSessionService {
         if (chat.recipe_id) {
           chatData.recipe_id = chat.recipe_id;
         }
-
-        // 1. Guardar en Redis (Guardamos la sesión con un TTL (en segundos))
-        await this.sessionService.set(redisKey, JSON.stringify(chatData), ttl);
-
-        return chatData;
       } else {
         // CASO B: EL CHAT ES NUEVO (Creamos)
         // ==========================================
-        const chatData: ChatSession = {
+        chatData = {
           chat_id: chat.chat_id,
           title: chat.title,
           createdAt: chat.createdAt,
@@ -133,11 +136,12 @@ export class ChatSessionService {
           messages: chat.messages,
           recipe_id: null,
         };
-
-        await this.sessionService.set(redisKey, JSON.stringify(chatData), ttl);
-
-        return chatData;
       }
+
+      // 1. Guardar en Redis (Guardamos la sesión con un TTL (en segundos))
+      await this.sessionService.set(redisKey, JSON.stringify(chatData), ttl);
+
+      return chatData;
     } catch (e: any) {
       throw new Error("Ocurrió un error interno al guardar el mensaje.");
     }

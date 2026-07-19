@@ -49,20 +49,18 @@ export async function createSecureToken(
   r: boolean, // Remember me
   d: string, // Device ID
 ): Promise<string> {
-  let ttlSeconds: number;
-
   try {
-    if (r) ttlSeconds = 7 * 24 * 60 * 60;
-    else ttlSeconds = 1 * 24 * 60 * 60;
+    const ttlSeconds = r ? 7 * 24 * 60 * 60 : 1 * 24 * 60 * 60;
 
-    // Crear sesión en Redis
     const sessionId = await authSessionService.createSession(u, d, ttlSeconds);
 
     if (!sessionId) {
       throw new Error("Error al crear la sesión");
     }
 
-    const payload: SecureTokenPayload = {
+    const accessTokenTtl = "15m";
+
+    const payload: Omit<SecureTokenPayload, "iat" | "exp" | "jti"> = {
       sub: hashUserId(u.id),
       rol: encodeRole(u.role),
       prv: encodeProvider(u.provider),
@@ -74,7 +72,7 @@ export async function createSecureToken(
 
     return jwt.sign(payload, SECRET_KEY, {
       algorithm: "HS256",
-      expiresIn: r ? "7d" : "1d",
+      expiresIn: accessTokenTtl,
       jwtid: crypto.randomUUID(),
     });
   } catch (e: any) {
@@ -82,10 +80,13 @@ export async function createSecureToken(
   }
 }
 
-export function createTempToken(payload: TempTokenPayload): string {
+export function signAccessToken(
+  payload: Omit<SecureTokenPayload, "iat" | "exp" | "jti"> | TempTokenPayload,
+  extend: boolean = false
+): string {
   return jwt.sign(payload, SECRET_KEY, {
     algorithm: "HS256",
-    expiresIn: "30m",
+    expiresIn: extend ? "30m" : "15m",
     jwtid: crypto.randomUUID(),
   });
 }

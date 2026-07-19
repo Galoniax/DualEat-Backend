@@ -44,8 +44,8 @@ export interface SecureTokenPayload {
   dev: string // device ID
   ses: string; // session ID
   typ: "access"; // tipo de token
-  iat?: number; // issued at
-  exp?: number; // expiration
+  iat: number; // issued at
+  exp: number; // expiration
   jti?: string; // JWT ID
 }
 

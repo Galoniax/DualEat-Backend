@@ -1,5 +1,5 @@
 import { prisma } from "@/core/database/prisma/prisma";
-import { Prisma } from "@prisma/client";
+import { Prisma, User } from "@prisma/client";
 import { CommunityDTO } from "@/shared/interfaces/dto/community.dto";
 import { generateSlug } from "@/shared/utils/sluglify";
 
@@ -7,6 +7,26 @@ export class CommunityService {
   // CREAR COMUNIDAD
   // =========================================================
   async create(community: CommunityDTO, user_id: string) {
+    const count = await prisma.community.count({
+      where: {
+        creator_id: user_id,
+      },
+    });
+
+    const user = await prisma.user.findUnique({
+      where: { id: user_id },
+      select: { subscription_status: true },
+    });
+
+    if (
+      count >= 10 &&
+      user?.subscription_status !== "ACTIVE" &&
+      user?.subscription_status !== "TRIAL"
+    ) {
+      throw new Error(
+        "Solo los usuarios con suscripción pueden crear más de 10 comunidades",
+      );
+    }
     try {
       const result = await prisma.$transaction(
         async (tx: Prisma.TransactionClient) => {

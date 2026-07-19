@@ -21,12 +21,12 @@ router.get(
   controller.getUserRecipes.bind(controller),
 );
 
-// 3. Obtener receta por Id
-// =========================================================
-router.get("/:id", controller.getById.bind(controller));
-
-// 4. Buscar recetas por nombre (PAGINATION)
+// 3. Buscar recetas por nombre (PAGINATION)
 // =========================================================
 router.get("/search", controller.searchRecipes.bind(controller));
+
+// 4. Obtener receta por Id
+// =========================================================
+router.get("/:id", controller.getById.bind(controller));
 
 export default router;

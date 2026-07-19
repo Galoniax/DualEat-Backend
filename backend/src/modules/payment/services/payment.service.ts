@@ -1,4 +1,3 @@
-import AuthSessionService from "@/modules/auth/services/auth-session.service";
 import MercadoPagoConfig, {
   MerchantOrder,
   Payment,
@@ -13,9 +12,7 @@ import {
   SubscriptionPlan,
   SubscriptionStateMP,
 } from "@prisma/client";
-import {
-  PlanDetails,
-} from "@/shared/interfaces/mercadopago.dto";
+
 import { getSocketServer } from "@/core/config/socket.config";
 import { NotificationService } from "@/modules/notification/services/notification.service";
 import { PreferenceRequest } from "mercadopago/dist/clients/preference/commonTypes";
@@ -36,11 +33,9 @@ export async function requestClient(
   const config = new MercadoPagoConfig({ accessToken: targetToken });
   const client = new Preference(config);
 
-  /*const url =
+  const url =
     process.env.NOTIFY_URL ||
-    "https://f4d8-190-190-126-222.ngrok-free.app/api/payment/notification";*/
-
-  const url = "https://4edc-190-190-126-222.ngrok-free.app/api/payment/notification";
+    "https://f4d8-190-190-126-222.ngrok-free.app/api/payment/notification";
 
   request.notification_url = `${url}`;
 
@@ -49,7 +44,8 @@ export async function requestClient(
 
     const response = await client.create({ body: request });
 
-    const isDevelopment = process.env.NODE_ENV !== "production";
+    //const isDevelopment = process.env.NODE_ENV !== "production";
+    const isDevelopment = true;
     let checkoutUrl = response.init_point;
 
     if (isDevelopment && response.sandbox_init_point) {
@@ -71,6 +67,8 @@ export async function requestClient(
 export class PaymentService {
   constructor() {}
 
+  // OBTENER INFORMACION DE MERCHANT ORDER
+  // =========================================================
   async getMerchantOrderInfo(order_id: string, retries = 5, delayMs = 3000) {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -104,9 +102,73 @@ export class PaymentService {
     return null;
   }
 
+  async getPaymentInfo(paymentId: string, retries = 15, delayMs = 3000) {
+    const client = new Payment(config);
+
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        console.log(
+          `[MP API] Intento ${attempt}/${retries} de obtener pago ${paymentId}`,
+        );
+        const paymentInfo = await client.get({ id: paymentId });
+        console.log(
+          `[MP API] Pago ${paymentId} obtenido exitosamente - Estado: ${paymentInfo.status}`,
+        );
+        return paymentInfo;
+      } catch (error: any) {
+        if (attempt === 1 || attempt === retries) {
+          console.error(`[MP API] Error en intento ${attempt}/${retries}:`, {
+            message: error?.message,
+            status: error?.status,
+            code: error?.cause?.[0]?.code,
+          });
+        }
+
+        if (error?.message && error.message.includes("Payment not found")) {
+          if (attempt < retries) {
+            if (attempt === 1) {
+              console.warn(
+                `[MP API] Pago ${paymentId} no sincronizado aún. Reintentando...`,
+              );
+            }
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+            continue;
+          } else {
+            console.warn(
+              `[MP API] Pago ${paymentId} no encontrado después de ${retries} intentos (${(retries * delayMs) / 1000}s).`,
+            );
+            return null;
+          }
+        }
+
+        if (error?.status === 401 || error?.status === 403) {
+          console.error(
+            `[MP API] Error de autenticación/autorización. Verifica tu Access Token.`,
+          );
+          throw new Error(
+            `Error de autenticación con Mercado Pago: ${error.message}`,
+          );
+        }
+
+        if (attempt < retries) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          continue;
+        }
+
+        throw new Error(
+          `Error al obtener la información del pago desde MP: ${error?.message || error}`,
+        );
+      }
+    }
+
+    return null;
+  }
+
   processingPayments = new Set<string>();
 
-  async processPaymentApproval(externalRef: string, paymentId: string) {
+  // PROCESAMIENTO DE SUSCRIPCIÓN
+  // =========================================================
+  async processSubscription(externalRef: string, paymentId: string) {
     if (this.processingPayments.has(paymentId)) {
       console.log(
         `[LOCK] El pago ${paymentId} ya está siendo procesado concurrentemente. Ignorando.`,
@@ -132,9 +194,7 @@ export class PaymentService {
 
       // 2. Verificación de integridad de los datos
       if (!user_id || !local_id || !plan) {
-        throw new Error(
-          `Formato de referencia externa incompleto o no válido`,
-        );
+        throw new Error(`Formato de referencia externa incompleto o no válido`);
       }
 
       const isCommunityUser =
@@ -153,18 +213,24 @@ export class PaymentService {
         orderBy: { created_at: "desc" },
       });
 
-      console.log("existingSubscription", existing)
+      console.log("existingSubscription", existing);
 
       // GESTIÓN DE PAGO DUPLICADO: Verificamos si este pago específico ya fue procesado
       let isDuplicatePayment = false;
       if (existing) {
         if (existing.mp_preapproval_id === paymentId) {
           isDuplicatePayment = true;
-        } else if (existing.payment_history && Array.isArray(existing.payment_history)) {
+        } else if (
+          existing.payment_history &&
+          Array.isArray(existing.payment_history)
+        ) {
           isDuplicatePayment = existing.payment_history.some(
             (item: any) => item && item.reference_id === paymentId,
           );
-        } else if (existing.payment_history && typeof existing.payment_history === "object") {
+        } else if (
+          existing.payment_history &&
+          typeof existing.payment_history === "object"
+        ) {
           const historyObj = existing.payment_history as any;
           if (historyObj.reference_id === paymentId) {
             isDuplicatePayment = true;
@@ -268,11 +334,8 @@ export class PaymentService {
         where: { id: user_id },
         data: { subscription_status: "ACTIVE" },
       });
-      
-      console.log(
-        `Suscripción creada/actualizada exitosamente:`,
-        subscription,
-      );
+
+      console.log(`Suscripción creada/actualizada exitosamente:`, subscription);
 
       return subscription;
     } finally {
@@ -280,7 +343,9 @@ export class PaymentService {
     }
   }
 
-  async processOrderPaymentApproval(externalRef: string, paymentId: string) {
+  // PROCESAMIENTO DE ORDEN
+  // =========================================================
+  async processOrder(externalRef: string, paymentId: string) {
     if (this.processingPayments.has(paymentId)) {
       console.log(
         `[LOCK] El pago de la orden ${paymentId} ya está siendo procesado concurrentemente. Ignorando.`,
@@ -308,8 +373,13 @@ export class PaymentService {
         throw new Error(`Orden no encontrada para ID: ${order_id}`);
       }
 
-      // 3. Si la orden ya está procesada (no es PENDING), ignoramos
-      if (order.status !== "IN_PROGRESS") {
+      // 3. Si la orden ya está procesada (por ejemplo, ya está PAID, COMPLETED o CANCELLED), ignoramos
+      const allowed: OrderStatus[] = [
+        OrderStatus.IN_PROGRESS,
+        OrderStatus.READY,
+      ];
+
+      if (!allowed.includes(order.status)) {
         console.log(
           `Orden ${order_id} ya está procesada con estado: ${order.status}. Ignorando webhook duplicado.`,
         );
@@ -320,18 +390,20 @@ export class PaymentService {
       let code = "";
       let isUnique = false;
 
-      while (!isUnique) {
-        code = Math.floor(10000000 + Math.random() * 90000000).toString();
+      if (order.status === OrderStatus.IN_PROGRESS) {
+        while (!isUnique) {
+          code = Math.floor(10000000 + Math.random() * 90000000).toString();
 
-        const existing = await prisma.order.findFirst({
-          where: {
-            local_id: order.local_id,
-            short_code: code,
-          },
-        });
+          const existing = await prisma.order.findFirst({
+            where: {
+              local_id: order.local_id,
+              short_code: code,
+            },
+          });
 
-        if (!existing) {
-          isUnique = true;
+          if (!existing) {
+            isUnique = true;
+          }
         }
       }
 
@@ -339,9 +411,13 @@ export class PaymentService {
       const updatedOrder = await prisma.order.update({
         where: { id: order_id },
         data: {
-          status: OrderStatus.PAID,
+          status:
+            order.status === OrderStatus.IN_PROGRESS
+              ? OrderStatus.PAID
+              : OrderStatus.COMPLETED,
           payment_method: `MERCADOPAGO (${paymentId})`,
-          short_code: code,
+          short_code:
+            order.status === OrderStatus.IN_PROGRESS ? code : order.short_code,
           updated_at: new Date(),
         },
         include: {
@@ -412,72 +488,12 @@ export class PaymentService {
     }
   }
 
-  async getPaymentInfo(paymentId: string, retries = 15, delayMs = 3000) {
-    const client = new Payment(config);
-
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      try {
-        console.log(
-          `[MP API] Intento ${attempt}/${retries} de obtener pago ${paymentId}`,
-        );
-        const paymentInfo = await client.get({ id: paymentId });
-        console.log(
-          `[MP API] Pago ${paymentId} obtenido exitosamente - Estado: ${paymentInfo.status}`,
-        );
-        return paymentInfo;
-      } catch (error: any) {
-        if (attempt === 1 || attempt === retries) {
-          console.error(`[MP API] Error en intento ${attempt}/${retries}:`, {
-            message: error?.message,
-            status: error?.status,
-            code: error?.cause?.[0]?.code,
-          });
-        }
-
-        if (error?.message && error.message.includes("Payment not found")) {
-          if (attempt < retries) {
-            if (attempt === 1) {
-              console.warn(
-                `[MP API] Pago ${paymentId} no sincronizado aún. Reintentando...`,
-              );
-            }
-            await new Promise((resolve) => setTimeout(resolve, delayMs));
-            continue;
-          } else {
-            console.warn(
-              `[MP API] Pago ${paymentId} no encontrado después de ${retries} intentos (${(retries * delayMs) / 1000}s).`,
-            );
-            return null;
-          }
-        }
-
-        if (error?.status === 401 || error?.status === 403) {
-          console.error(
-            `[MP API] Error de autenticación/autorización. Verifica tu Access Token.`,
-          );
-          throw new Error(
-            `Error de autenticación con Mercado Pago: ${error.message}`,
-          );
-        }
-
-        if (attempt < retries) {
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
-          continue;
-        }
-
-        throw new Error(
-          `Error al obtener la información del pago desde MP: ${error?.message || error}`,
-        );
-      }
-    }
-
-    return null;
-  }
-
   // CREACIÓN/REFRESH DE TOKENS
   // =========================================================
   async createOauth(code: string, redirectUri: string) {
-    const client_secret = process.env.MP_CLIENT_SECRET || "APP_USR-6323842828937796-061123-e4f75fe6e41e645a5191340349ccf71e-3468655592";
+    const client_secret =
+      process.env.MP_CLIENT_SECRET ||
+      "APP_USR-6323842828937796-061123-e4f75fe6e41e645a5191340349ccf71e-3468655592";
     const client_id = process.env.MP_CLIENT_ID || "6323842828937796";
 
     try {
@@ -507,7 +523,8 @@ export class PaymentService {
     }
 
     const clientSecret =
-      process.env.MP_CLIENT_SECRET || "APP_USR-6323842828937796-061123-e4f75fe6e41e645a5191340349ccf71e-3468655592";
+      process.env.MP_CLIENT_SECRET ||
+      "APP_USR-6323842828937796-061123-e4f75fe6e41e645a5191340349ccf71e-3468655592";
     const client_id = process.env.MP_CLIENT_ID || "6323842828937796";
 
     try {

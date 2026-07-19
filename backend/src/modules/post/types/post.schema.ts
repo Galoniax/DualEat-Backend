@@ -8,10 +8,7 @@ const sanitizeContent = (val: string) =>
 
 export const createPostSchema = z.object({
   post: z.object({
-    title: z
-      .string()
-      .min(1, "El título es requerido")
-      .trim(),
+    title: z.string().min(1, "El título es requerido").trim(),
     content: z
       .string()
       .min(1, "El contenido es requerido")
@@ -67,8 +64,9 @@ export const updatePostSchema = z.object({
   post: z.object({
     id: z.coerce.string().nonempty("El ID del post es requerido"),
     title: z.string().min(1, "El título es requerido").trim(),
-    content: z.string().min(1, "El contenido es requerido").transform(sanitizeContent),
-    image_urls: z.array(z.url("Cada imagen debe ser una URL válida")).optional(),
-    community_id: z.string().nonempty("La comunidad es requerida"),
+    content: z
+      .string()
+      .min(1, "El contenido es requerido")
+      .transform(sanitizeContent),
   }),
 });

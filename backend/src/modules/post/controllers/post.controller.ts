@@ -137,13 +137,46 @@ export class PostController {
       if (recipe?.main_image) {
         urls.push(recipe.main_image);
       }
-  
+
       if (urls.length > 0) {
         deleteFiles(urls).catch((err) =>
           console.error("Error crítico al borrar imágenes huérfanas:", err),
         );
       }
 
+      return res.status(e.status || 500).json({
+        success: false,
+        message: e.message || "Error interno del servidor",
+      });
+    }
+  };
+
+  // ACTUALIZAR POST
+  // =========================================================
+  update = async (req: Request, res: Response) => {
+    const { post } = req.body as { post: PostDTO };
+
+    const user_id = (req as any).user?.id || req.body.user_id;
+
+    if (!post) {
+      return res.status(400).json({
+        success: false,
+        message: "Datos no validos",
+      });
+    }
+
+    try {
+      const result = await this.postService.update(String(user_id), post);
+
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          message: "Post no encontrado",
+        });
+      }
+
+      return res.status(200).json({ success: true, data: result });
+    } catch (e: any) {
       return res.status(e.status || 500).json({
         success: false,
         message: e.message || "Error interno del servidor",

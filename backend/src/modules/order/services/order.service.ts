@@ -346,87 +346,28 @@ export class OrderService {
   }
 
   // CREAR ORDEN Y PREFERENCIA
-  // =========================================================
-  async prePurchase(
-    local_id: string,
-    user: User,
-    items: {
-      food_id: string;
-      quantity: number;
-      unit_price: number;
-      name: string;
-    }[],
-    platform?: "mobile" | "web",
-    backendBaseUrl?: string,
+  // =========================================================  // HELPER PARA GENERAR LA PREFERENCIA DE MERCADO PAGO
+  private async generatePreference(
+    order: any,
+    url: string,
+    type: "PRE_ORDER" | "ORDER",
   ) {
     const service = new PaymentService();
-    const accessToken = await service.getRefreshToken(local_id);
+    const accessToken = await service.getRefreshToken(order.local_id);
 
-    /*if (!accessToken && process.env.NODE_ENV === "production") {
+    if (!accessToken && process.env.NODE_ENV === "production") {
       const e = new Error(
         "El local no tiene configuradas sus credenciales de Mercado Pago para recibir cobros.",
       ) as any;
       e.status = 400;
       throw e;
-    }*/
-
-    console.log("accessToken", accessToken);
-
-    // 2. Crear la orden PENDING en la base de datos
-    const order = await prisma.$transaction(async (tx) => {
-      let total = 0;
-      const orderItemsData = [];
-
-      for (const item of items) {
-        const subtotal = item.unit_price * item.quantity;
-        total += subtotal;
-
-        orderItemsData.push({
-          food_id: item.food_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          subtotal: subtotal,
-        });
-      }
-
-      const result = await tx.order.create({
-        data: {
-          user_id: user.id,
-          local_id,
-          status: OrderStatus.IN_PROGRESS,
-          total: total,
-          payment_method: "MERCADOPAGO",
-          order_items: {
-            create: orderItemsData,
-          },
-        },
-        include: {
-          order_items: true,
-        },
-      });
-
-      return result;
-    });
-
-    if (!order) {
-      const e = new Error("Error en la creación de la orden.") as any;
-      e.status = 400;
-      throw e;
     }
 
-    // Obtener el nombre del local para la preferencia
-    const local = await prisma.local.findUnique({
-      where: { id: local_id },
-      select: { name: true },
-    });
-    const localName = local?.name || "Local";
+    const localName = order.local?.name || "Local";
 
-    // Calcular el 5% de comisión
-    const marketplaceFee = Number((order.total * 0.05).toFixed(2));
-
-    // Generar una descripción con el desglose de los productos para mostrar al comprador
-    const itemDescription = items
-      .map((i) => `${i.name} (x${i.quantity})`)
+    // Generar la descripción de los items
+    const itemDescription = order.order_items
+      .map((item: any) => `${item.food.name} (x${item.quantity})`)
       .join(", ");
 
     const mpItems: Items[] = [
@@ -443,57 +384,175 @@ export class OrderService {
       },
     ];
 
-    let success = `${process.env.CLIENT_URL}/order/success`;
-    let failure = `${process.env.CLIENT_URL}/order/failure`;
-    let pending = `${process.env.CLIENT_URL}/order/pending`;
-
-    if (platform === "mobile" && backendBaseUrl) {
-      // Si el host es una IP local o localhost, usamos la URL pública de ngrok en HTTPS
-      // para que Mercado Pago acepte el auto_return sin dar error
-      const baseRedirect =
-        backendBaseUrl.includes("192.168") ||
-        backendBaseUrl.includes("localhost") ||
-        backendBaseUrl.includes("127.0.0.1")
-          ? "https://f4d8-190-190-126-222.ngrok-free.app"
-          : backendBaseUrl;
-
-      success = `${baseRedirect}/api/payment/callback?status=success&type=PRE_ORDER&id=${order.id}`;
-      failure = `${baseRedirect}/api/payment/callback?status=failure&type=PRE_ORDER&id=${order.id}`;
-      pending = `${baseRedirect}/api/payment/callback?status=pending&type=PRE_ORDER&id=${order.id}`;
-    }
-
     const request: PreferenceRequest = {
       items: mpItems,
       external_reference: `DUALEAT-ORDER-${order.id}`,
       back_urls: {
-        success,
-        failure,
-        pending,
+        success: `${url}?status=success&type=${type}&id=${order.id}`,
+        failure: `${url}?status=failure&type=${type}&id=${order.id}`,
+        pending: `${url}?status=pending&type=${type}&id=${order.id}`,
       },
       auto_return: "approved",
       binary_mode: true,
       statement_descriptor: "DUALEAT",
-      //marketplace_fee: marketplaceFee,
       payer: {
-        email: user.email,
-        name: user.name,
+        email: order.user.email,
+        name: order.user.name,
       },
       metadata: {
         order_id: order.id,
-        local_id: local_id,
-        user_id: user.id,
+        local_id: order.local_id,
+        user_id: order.user_id,
       },
     };
 
+    console.log(`[MP PREFERENCE REQUEST - ${type}]:`, request);
+
+    return await requestClient(request, accessToken);
+  }
+
+  // CREAR ORDEN Y PREFERENCIA (PRECOMPRA DIRECTA DESDE CARRITO)
+  // =========================================================
+  async prePurchase(
+    local_id: string,
+    user_id: string,
+    items: {
+      food_id: string;
+      quantity: number;
+      unit_price: number;
+      name: string;
+    }[],
+    url: string,
+  ) {
+    // 1. Crear la orden PENDING en la base de datos
+    const order = await prisma.$transaction(async (tx) => {
+      let total = 0;
+      const orderItemsData = [];
+
+      for (const item of items) {
+        const subtotal = item.unit_price * item.quantity;
+        total += subtotal;
+
+        orderItemsData.push({
+          food_id: item.food_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          subtotal: subtotal,
+        });
+      }
+
+      return await tx.order.create({
+        data: {
+          user_id: user_id,
+          local_id,
+          status: OrderStatus.IN_PROGRESS,
+          total: total,
+          payment_method: "MERCADOPAGO",
+          order_items: {
+            create: orderItemsData,
+          },
+        },
+        include: {
+          order_items: {
+            include: {
+              food: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          local: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+    });
+
+    if (!order) {
+      const e = new Error("Error en la creación de la orden.") as any;
+      e.status = 400;
+      throw e;
+    }
+
     try {
-      const response = await requestClient(request, accessToken);
+      const checkoutUrl = await this.generatePreference(
+        order,
+        url,
+        "PRE_ORDER",
+      );
 
       return {
         order,
-        checkoutUrl: response,
+        checkoutUrl,
       };
     } catch (e: any) {
-      throw new Error(`Error en la API de Mercado Pago: ${e}`);
+      throw new Error(`Error en la API de Mercado Pago: ${e.message || e}`);
+    }
+  }
+
+  // PAGAR ORDEN EXISTENTE (DESDE CÓDIGO QR / MESA)
+  // =========================================================
+  async purchase(u: string, oi: string, url: string) {
+    const order = await prisma.order.findUnique({
+      where: { id: oi },
+      include: {
+        order_items: {
+          include: {
+            food: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        local: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      const e = new Error("La orden no existe o no ha sido completada.") as any;
+      e.status = 404;
+      throw e;
+    }
+
+    if (order.user_id !== u) {
+      const e = new Error(
+        "No tienes permiso para actualizar esta orden.",
+      ) as any;
+      e.status = 403;
+      throw e;
+    }
+
+    if (
+      order.status === OrderStatus.COMPLETED ||
+      order.status === OrderStatus.PAID
+    ) {
+      const e = new Error("La orden ya ha sido pagada.") as any;
+      e.status = 409;
+      throw e;
+    }
+
+    try {
+      const checkoutUrl = await this.generatePreference(order, url, "ORDER");
+
+      return {
+        checkoutUrl,
+      };
+    } catch (e: any) {
+      throw e;
     }
   }
 }

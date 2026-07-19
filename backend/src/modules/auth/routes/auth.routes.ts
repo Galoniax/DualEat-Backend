@@ -10,12 +10,13 @@ import { PasswordController } from "../controllers/password.controller";
 import { limiter } from "@/core/middlewares/rateLimiter";
 import { isAuthenticated } from "@/core/middlewares/isAuthenticated";
 
-import { createTempToken, createSecureToken } from "@/shared/utils/jwt";
+import { createSecureToken, signAccessToken } from "@/shared/utils/jwt";
 import {
   UserSessionData,
   TempTokenPayload,
 } from "@/shared/interfaces/dto/user.dto";
 import { prisma } from "@/core/database/prisma/prisma";
+import { DEFAULT_AVATAR } from "@/core/config/config";
 import multer from "multer";
 
 const upload = multer({
@@ -98,7 +99,7 @@ router.get(
         dev: deviceID,
         step: "incomplete_oauth_registration",
       };
-      const tempToken = createTempToken(tempTokenPayload);
+      const tempToken = signAccessToken(tempTokenPayload, true);
 
       if (isMobile) {
         return res.redirect(`dualeat://callback?tempToken=${tempToken}`);
@@ -151,7 +152,10 @@ router.get(
         }
       }
 
-      const session: Pick<UserSessionData, "id" | "role" | "provider" | "deviceId" | "loginAt" | "lastActivity"> = {
+      const session: Pick<
+        UserSessionData,
+        "id" | "role" | "provider" | "deviceId" | "loginAt" | "lastActivity"
+      > = {
         id: user.id,
         role: user.role,
         provider: user.provider,
@@ -163,12 +167,13 @@ router.get(
       // ============ Lógica de autenticación =============
       const accessToken = await createSecureToken(session, true, deviceID);
 
+      const isProd = process.env.NODE_ENV === "production";
       res.cookie("accessToken", accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        secure: isProd,
+        sameSite: isProd ? "none" : "lax",
         path: "/",
-        maxAge: isMobile ? 14 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
+        maxAge: isMobile ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
       });
 
       // ============ Lógica de redirección =============
@@ -245,8 +250,47 @@ router.post(
   controller.upload.bind(controller),
 );
 
-router.get("/me", isAuthenticated, (req, res) => {
-  res.json(req.user);
+router.get("/me", isAuthenticated, async (req, res) => {
+  try {
+    const user_id = (req as any).user?.id;
+
+    const user = await prisma.user.findUnique({
+      where: { id: user_id },
+      include: {
+        local_users: {
+          include: {
+            local: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "Usuario no encontrado" });
+    }
+
+    if (!user.active) {
+      return res.status(403).json({ success: false, message: "Cuenta desactivada" });
+    }
+
+    const workplaces = user.local_users.map((workplace) => ({
+      id: workplace.local.id,
+      slug: workplace.local.slug,
+      name: workplace.local.name,
+      role: workplace.role,
+    }));
+
+    const { password_hash, local_users, ...safeUser } = user;
+
+    res.json({
+      ...safeUser,
+      avatar_url: user.avatar_url ?? DEFAULT_AVATAR,
+      workplaces,
+      deviceId: (req as any).user?.deviceId,
+    });
+  } catch (e: any) {
+    return res.status(500).json({ success: false, message: "Error al obtener perfil" });
+  }
 });
 
 router.get("/:user_id", controller.getById.bind(controller));
@@ -264,6 +308,10 @@ router.put(
 // =========================================
 router.post("/logout", controller.logout.bind(controller));
 
-router.post("/logout-all", isAuthenticated, controller.logoutAll.bind(controller));
+router.post(
+  "/logout-all",
+  isAuthenticated,
+  controller.logoutAll.bind(controller),
+);
 
 export default router;

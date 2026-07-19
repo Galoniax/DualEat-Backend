@@ -81,12 +81,12 @@ export class RecipeService {
       const result = await prisma.recipe.findMany({
         where: { user_id },
         include: {
-          ingredients: {
-            include: {
-              ingredient: true,
+          _count: {
+            select: {
+              ingredients: true,
+              steps: true,
             },
           },
-          steps: true,
         },
       });
 
@@ -94,7 +94,30 @@ export class RecipeService {
         throw new Error("Recetas no encontradas");
       }
 
-      return result;
+      const recipeIds = result.map((recipe) => recipe.id);
+
+      const votes = await prisma.post.groupBy({
+        by: ["recipe_id"],
+        _sum: {
+          votes_up: true,
+          votes_down: true,
+        },
+        where: {
+          recipe_id: { in: recipeIds },
+        },
+      });
+
+      const data = result.map((recipe) => {
+        const recipeVotes = votes.find((v) => v.recipe_id === recipe.id);
+
+        return {
+          ...recipe,
+          votes_up: recipeVotes?._sum?.votes_up || 0,
+          votes_down: recipeVotes?._sum?.votes_down || 0,
+        };
+      });
+
+      return data;
     } catch (e: any) {
       throw e;
     }
@@ -108,7 +131,7 @@ export class RecipeService {
     page: number,
   ) {
     try {
-      const size = 5;
+      const size = 10;
       const currentPage = Math.max(1, page);
       const skip = (currentPage - 1) * size;
 
@@ -204,8 +227,8 @@ export class RecipeService {
           hasMore,
         },
       };
-    } catch (e) {
-      return null;
+    } catch (e: any) {
+      throw new Error("No se encontraron recetas");
     }
   }
 }

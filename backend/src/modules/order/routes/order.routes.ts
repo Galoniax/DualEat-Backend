@@ -36,7 +36,9 @@ router.get("/user/orders/:id", order.getById.bind(order));
 router.post("/cart/validate", cart.getCartInfo.bind(cart));
 
 // Crear orden de compra / Precompra (checkout)
-router.post("/checkout", isAuthenticated, order.prePurchase.bind(order));
+router.post("/draft", isAuthenticated, order.prePurchase.bind(order));
+
+router.post("/checkout", isAuthenticated, order.purchase.bind(order));
 
 // Crear orden manual por staff
 router.post(

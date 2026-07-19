@@ -1,11 +1,14 @@
+import { ChatSessionData } from "@/shared/interfaces/types/chat.types";
 import Groq from "groq-sdk";
 
 export class AIService {
   private static instance: AIService;
   private groq: Groq;
 
-  private readonly INTENT_MODEL = process.env.INTENT_MODEL || "openai/gpt-oss-20b";
-  private readonly CHAT_MODEL = process.env.CHAT_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct";
+  private readonly INTENT_MODEL =
+    process.env.INTENT_MODEL || "openai/gpt-oss-20b";
+
+  private readonly CHAT_MODEL = process.env.CHAT_MODEL || "openai/gpt-oss-120b";
 
   private constructor() {
     this.groq = new Groq({
@@ -20,14 +23,25 @@ export class AIService {
     return AIService.instance;
   }
 
-  public async detectIntent(
-    question: string,
-  ): Promise<{ type: "SEARCH" | "CHAT"; query: string | null }> {
-    const systemPrompt = `Analiza la intención del usuario en la app DualEat.
-    - Si busca recetas o ingredientes, type="SEARCH". 
-    - IMPORTANTE: En "query", extrae solo las palabras clave esenciales (sustantivos). Elimina palabras como "receta", "dame", "con", "de", "quiero".
-    - Ejemplo: "Dame una receta con papas fritas" -> query="papas fritas".
-    - Ejemplo: "Como cocinar pollo al horno" -> query="pollo horno".
+  public async detectIntent(question: string): Promise<{
+    type: "SEARCH" | "CHAT";
+    query: string | null;
+  }> {
+    const systemPrompt = `Analiza la intención del usuario. Clasifica en uno de estos 2 tipos:
+
+    1. type="SEARCH" → El usuario menciona CUALQUIER tema relacionado con comida, cocina, ingredientes, recetas, técnicas culinarias, recomendaciones de comida, nutrición, o gastronomía en general.
+       - Ejemplo: "Dame recetas con papas" → SEARCH, query="papas"
+       - Ejemplo: "Quiero cocinar pollo al horno" → SEARCH, query="pollo horno"
+       - Ejemplo: "¿Qué me recomiendas hacer con papas?" → SEARCH, query="papas"
+       - Ejemplo: "¿Qué puedo cocinar con este clima?" → SEARCH, query=null
+       - Ejemplo: "¿Qué queso queda bien con papas?" → SEARCH, query="papas"
+       - Ejemplo: "¿Qué diferencia hay entre hornear y asar?" → SEARCH, query=null
+       - IMPORTANTE: En "query", extrae solo las palabras clave de ingredientes o platos (sustantivos). Si no hay ingredientes/platos específicos, query=null.
+       - Elimina palabras como "receta", "dame", "con", "de", "quiero", "recomiendas".
+
+    2. type="CHAT" → El usuario conversa de temas NO relacionados con comida/cocina.
+       - Ejemplo: "Hola, ¿cómo estás?" → CHAT
+       - Ejemplo: "Hablemos de fútbol" → CHAT
 
     Responde ÚNICAMENTE con un JSON válido:
     {
@@ -57,7 +71,6 @@ export class AIService {
     }
   }
 
-  // =========================================================
   // FORMATEAR HISTORIAL (Estilo OpenAI)
   // =========================================================
   private formatMessages(
@@ -74,10 +87,9 @@ export class AIService {
     });
 
     const safe = Array.isArray(conversation) ? conversation : [];
-    const sliced = safe.slice(-10);
 
     // 2. Mapear el historial previo
-    const history = (Array.isArray(sliced) ? sliced : []).map((msg) => ({
+    const history = (Array.isArray(safe) ? safe : []).map((msg) => ({
       role:
         msg.role.toLowerCase() === "ia" ||
         msg.role.toLowerCase() === "assistant"
@@ -94,12 +106,11 @@ export class AIService {
     return messages;
   }
 
-  // =========================================================
   // GENERAR RESPUESTA DE CHAT
   // =========================================================
   async generateChatResponse(
     systemInstruction: string,
-    conversation: any[] = [],
+    conversation: ChatSessionData[] = [],
     question: string,
   ): Promise<string> {
     try {
@@ -113,23 +124,29 @@ export class AIService {
         model: this.CHAT_MODEL,
         messages: messages as any,
         temperature: 0.5,
-        max_tokens: 1024,
-        top_p: 1,
+        max_tokens: 512,
       });
+      console.log("RESPONSECHAT", response);
 
-      return (
+      const rawContent =
         response.choices[0]?.message?.content ||
-        "Lo siento, no pude procesar tu solicitud."
-      );
-    } catch (error: any) {
-      console.error("Error en Groq Service:", error);
+        "Lo siento, no pude procesar tu solicitud.";
 
-      if (error.status === 413)
-        return "Error: El historial es demasiado largo.";
-      if (error.status === 429)
-        return "Error: Demasiadas peticiones (Límite de Groq alcanzado).";
+      const cleanContent = rawContent
+        .replace(/<think>[\s\S]*?<\/think>/gi, "")
+        .trim();
 
-      return "Hubo un problema técnico con el motor de IA.";
+      return cleanContent || "Lo siento, no pude procesar tu solicitud.";
+    } catch (e: any) {
+      console.log("Error en Groq generateChatResponse:", e);
+      if (e.status === 413)
+        throw new Error("Error: El historial es demasiado largo.");
+      if (e.status === 429)
+        throw new Error(
+          "Error: Demasiadas peticiones (Límite de Groq alcanzado).",
+        );
+
+      throw new Error("Hubo un problema técnico con el motor de IA.");
     }
   }
 }

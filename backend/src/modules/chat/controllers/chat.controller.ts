@@ -7,6 +7,7 @@ import SessionService from "@/core/services/session.service";
 import { AIService } from "../services/ai.service";
 
 import { ChatSession } from "@/shared/interfaces/types/chat.types";
+import { RecipeStep } from "@prisma/client";
 
 interface Recipe {
   id: string;
@@ -44,8 +45,7 @@ export class ChatController {
   // REALIZAR PREGUNTA A GROQ
   // =========================================================
   ask = async (req: Request, res: Response) => {
-    const { question, conversation, chat_id, recipe_id, ingredients } =
-      req.body;
+    const { question, chat_id, ingredients } = req.body;
     const user_id = (req as any).user?.id || req.body.user_id;
 
     if (!question) {
@@ -54,118 +54,108 @@ export class ChatController {
         .json({ success: false, message: "La pregunta es requerida." });
     }
 
+    let chat: ChatSession = {
+      chat_id: chat_id || this.sessionService.generateUniqueId(),
+      title: !chat_id
+        ? question.length > 30
+          ? question.substring(0, 30) + "..."
+          : question
+        : "",
+      createdAt: new Date().toISOString(),
+      lastActivity: new Date().toISOString(),
+      messages: [],
+      recipe_id: null,
+    };
+
+    if (chat_id) {
+      chat = await this.chatSessionService.getById(
+        String(user_id),
+        String(chat_id),
+      );
+    }
+
+    chat.messages.push({
+      role: "USER",
+      text: question,
+    });
+
     try {
       let recipes: PaginatedRecipeResponse | null = null;
       let intent: any = null;
 
-      let context = `Eres "DualChef", el asistente inteligente y amigable de la app DualEat.
+      let context = `Eres DualChef, chef amigable. Sé cálido, natural, varía tus respuestas. Tienes amplio conocimiento gastronómico. Si el tema no es comida, responde pero intenta relacionarlo con cocina sutilmente. Formato: Markdown, listas con - o 1., sin links/imágenes/emojis.`;
 
-      Tus directrices de personalidad y comportamiento:
-      1. Tono conversacional: Sé cálido, natural y empático. Si el usuario te saluda casualmente (ej: "Todo bien?"), respóndele de manera relajada y humana antes de ofrecer tus servicios.
-      2. No seas repetitivo: Evita usar la misma frase de bienvenida ("¡Bienvenido a DualEat!") en cada interacción. Varía tus respuestas según el contexto de la charla.
-      3. Experiencia culinaria: Si el usuario pregunta por comida, muestra entusiasmo y conocimiento. 
-      4. Temas generales: Puedes hablar de cualquier tema, pero siempre intenta, de manera sutil y divertida, relacionarlo con la comida o sugerir algo delicioso. (ej: "¡Todo bien por aquí! Con tanta charla me dio hambre, ¿a ti no?").
-      
-      REGLA DE FORMATO OBLIGATORIA: 
-      - SIEMPRE usa Markdown para formatear tu respuesta. 
-      - Usa negritas (**texto**) para resaltar ingredientes o nombres importantes.
-      - Usa listas con viñetas (-) o números (1.) para pasos.
-      - NO injectes links, imagenes, videos u otros elementos multimedia en tus respuestas.
-      - Usa saltos de línea (\\n\\n) para separar párrafos.`;
+      intent = await this.aiService.detectIntent(question);
 
-      if (recipe_id) {
-        const fullRecipe = await this.recipeService.getById(recipe_id);
+      const hasIngredients = ingredients && ingredients.length > 0;
 
-        if (fullRecipe) {
-          const recipeData = JSON.stringify(fullRecipe);
-          context += `
-            ACTUALMENTE ESTÁS AYUDANDO AL USUARIO A PREPARAR ESTA RECETA: 
-            ${recipeData}
-            
-            Reglas para este modo:
-            1. Responde a su pregunta ("${question}") basándote estrictamente en los pasos y detalles de esta receta.
-            2. Si el usuario pregunta por un ingrediente o paso, búscalo en la información provista.
-            3. Actúa como si estuvieras a su lado en la cocina guiándolo.
-          `;
+      if (intent.type === "SEARCH" || hasIngredients) {
+        const searchQuery = intent.query || question;
+        recipes = await this.recipeService.searchRecipes(
+          searchQuery,
+          ingredients,
+          1,
+        );
+
+        if (recipes && recipes.data.length > 0) {
+          const names = recipes.data.map((r: any) => r.name).join(", ");
+          context += ` Recetas encontradas: ${names}. Sugiérelas y pregunta cuál prefiere. No inventes otras.`;
+        } else {
+          context += ` No hay recetas en la BD para "${question}". Responde con tu conocimiento culinario.`;
         }
       } else {
-        intent = await this.aiService.detectIntent(question);
+        context += `
+         El usuario está conversando de manera general.
+         Responde a su mensaje ("${question}") de forma natural y amigable.
+         Si te hace una pregunta, respóndela. Si solo saluda, devuélvele el saludo con buena energía y pregúntale cómo le está yendo en su día o qué tiene pensado comer hoy.
+       `;
+      }
 
-        if (intent.type === "SEARCH" && intent.query) {
-          recipes = await this.recipeService.searchRecipes(
-            intent.query,
-            ingredients,
-            1,
-          );
+      if (chat.recipe_id) {
+        const fullRecipe = await this.recipeService.getById(chat.recipe_id);
 
-          if (recipes && recipes.data.length > 0) {
-            const data = JSON.stringify(recipes.data);
-            context += `
-            El usuario busca comida relacionada con "${intent.query}".
-            En nuestra base de datos TENEMOS estas opciones: ${data}.
-            Sugiérelas amablemente y pregúntale cuál le apetece preparar. 
-            NO inventes recetas que no estén en esta lista.
-          `;
-          } else {
-            context += `
-            El usuario buscó "${intent.query}" pero NO hay resultados en la base de datos.
-            Dile que no hay recetas de ese estilo por ahora, pero invítalo a buscar otra cosa (ej: pollo, pasta, vegano).
-          `;
-          }
-        } else if (intent.type === "CHAT") {
-          context += `
-           El usuario está conversando de manera general.
-           Responde a su mensaje ("${question}") de forma natural y amigable.
-           Si te hace una pregunta, respóndela. Si solo saluda, devuélvele el saludo con buena energía y pregúntale cómo le está yendo en su día o qué tiene pensado comer hoy.
-         `;
+        if (fullRecipe) {
+          const steps =
+            fullRecipe.steps
+              ?.map((s: RecipeStep) => `${s.step_number}. ${s.description}`)
+              .join(" | ") || "";
+          const ings =
+            fullRecipe.ingredients
+              ?.map((i: any) => i.ingredient?.name)
+              .filter(Boolean)
+              .join(", ") || "";
+          context += ` Receta fijada: "${fullRecipe.name}". Ingredientes: ${ings}. Pasos: ${steps}. Guía al usuario sobre esta receta, pero no te limites si pregunta otra cosa.`;
         }
       }
 
       const response = await this.aiService.generateChatResponse(
-        question,
-        conversation,
         context,
+        chat.messages.slice(-3, -1),
+        question,
       );
 
-      let title = "";
-      let c_id = chat_id;
-
-      if (!chat_id) {
-        title =
-          question.length > 30 ? question.substring(0, 30) + "..." : question;
-        c_id = this.sessionService.generateUniqueId();
-      }
-
-      const chat: ChatSession = {
-        chat_id: c_id,
-        title,
-        createdAt: new Date().toISOString(),
-        lastActivity: new Date().toISOString(),
-        messages: [
-          {
-            text: question,
-            role: "USER",
-          },
-          {
-            text: response,
-            role: "IA",
-          },
-        ],
-        recipe_id: recipe_id || null,
-      };
+      chat.messages.push({
+        role: "IA",
+        text: response,
+      });
 
       res.status(200).json({
         success: true,
         data: {
-          chat,
+          chat: {
+            chat_id: chat.chat_id,
+            title: chat.title,
+            messages: chat.messages.slice(-2),
+            recipe_id: chat.recipe_id,
+            created_at: chat.createdAt,
+            last_activity: chat.lastActivity,
+          },
           recipes: recipes?.data || null,
-          search_query: intent?.type === "SEARCH" ? intent.query : null,
+          search_query: hasIngredients ? question : null,
         },
       });
 
-      this.chatSessionService.addMessage(user_id, chat).catch((e) => {
-        console.error("Error crítico guardando en DB el historial de chat:", e);
-      });
+      this.chatSessionService.addMessage(user_id, chat);
     } catch (e: any) {
       return res.status(500).json({
         success: false,
@@ -186,9 +176,9 @@ export class ChatController {
         message: "ID de chat requerido",
       });
     }
-    
+
     try {
-      const chat = await this.chatSessionService.getById(
+      let chat = await this.chatSessionService.getById(
         String(user_id),
         String(chat_id),
       );
@@ -204,7 +194,11 @@ export class ChatController {
 
       await this.chatSessionService.addMessage(user_id, chat);
 
-      return res.status(200).json({ success: true, data: chat });
+      return res.status(200).json({
+        success: true,
+        message: "Chat actualizado correctamente",
+        data: chat.recipe_id,
+      });
     } catch (e: any) {
       return res.status(500).json({
         success: false,
@@ -294,7 +288,11 @@ export class ChatController {
           .json({ success: false, message: "Chat no encontrado" });
       }
 
-      return res.status(200).json({ success: true, data: chat });
+      return res.status(200).json({
+        success: true,
+        message: "Chat actualizado correctamente",
+        data: chat,
+      });
     } catch (e: any) {
       return res.status(500).json({
         success: false,

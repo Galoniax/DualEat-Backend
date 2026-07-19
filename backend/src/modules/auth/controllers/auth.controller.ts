@@ -18,7 +18,7 @@ import { comparePassword, hashPassword } from "@/shared/utils/hash";
 
 import {
   createSecureToken,
-  createTempToken,
+  signAccessToken,
   verifyTempToken,
 } from "@/shared/utils/jwt";
 import AuthSessionService from "../services/auth-session.service";
@@ -189,11 +189,12 @@ export class AuthController {
         ? 7 * 24 * 60 * 60 * 1000
         : 24 * 60 * 60 * 1000;
 
+      const isProd = process.env.NODE_ENV === "production";
       const cookieOptions = {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: isProd,
         path: "/",
-        sameSite: "strict" as const,
+        sameSite: isProd ? "none" as const : "lax" as const,
         maxAge: cookieMaxAge,
       };
 
@@ -263,7 +264,7 @@ export class AuthController {
         dev: deviceId,
       };
 
-      const tempToken = createTempToken(ttp);
+      const tempToken = signAccessToken(ttp, true);
 
       return res.status(200).json({
         success: true,
@@ -343,11 +344,12 @@ export class AuthController {
 
       // 5. RESPUESTA UNIFICADA
       // ============================================================
+      const isProd = process.env.NODE_ENV === "production";
       const cookieOptions = {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: isProd,
         path: "/",
-        sameSite: "strict" as const,
+        sameSite: isProd ? "none" as const : "lax" as const,
         maxAge: 7 * 24 * 60 * 60 * 1000,
       };
 
@@ -497,10 +499,11 @@ export class AuthController {
         }
       }
 
+      const isProduction = process.env.NODE_ENV === "production";
       res.clearCookie("accessToken", {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
         path: "/",
       });
 
@@ -521,14 +524,16 @@ export class AuthController {
   logoutAll = async (req: Request, res: Response) => {
     try {
       const user_id = (req as any).user?.id;
+      
       if (user_id) {
         await this.authSessionService.revokeAllUserSessions(user_id);
       }
 
+      const isProduction = process.env.NODE_ENV === "production";
       res.clearCookie("accessToken", {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
         path: "/",
       });
 

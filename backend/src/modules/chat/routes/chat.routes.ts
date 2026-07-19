@@ -22,28 +22,36 @@ router.post(
   controller.ask.bind(controller),
 );
 
-// 2. Obtener chat por ID
+// 2. Editar título del chat
 // =========================================================
-router.get("/:chat_id", isAuthenticated, controller.getById.bind(controller));
-
-// 3. Obtener chats del usuario
-// =========================================================
-router.get("/", isAuthenticated, controller.getUserChats.bind(controller));
-
-// 4. Editar titulo del chat
-// =========================================================
-router.put(
+router.patch(
   "/:chat_id/title",
   isAuthenticated,
   controller.editTitle.bind(controller),
 );
 
-// 5. Eliminar chat
+// 3. Actualizar receta del chat
+// =========================================================
+router.patch(
+  "/recipe",
+  isAuthenticated,
+  controller.updateRecipe.bind(controller),
+);
+
+// 4. Eliminar todos los chats
+// =========================================================
+router.delete("/", isAuthenticated, controller.deleteAll.bind(controller));
+
+// 5. Obtener todos los chats del usuario
+// =========================================================
+router.get("/", isAuthenticated, controller.getUserChats.bind(controller));
+
+// 6. Eliminar un chat por ID
 // =========================================================
 router.delete("/:chat_id", isAuthenticated, controller.delete.bind(controller));
 
-// 6. Eliminar todos los chats
+// 7. Obtener chat por ID
 // =========================================================
-router.delete("/", isAuthenticated, controller.deleteAll.bind(controller));
+router.get("/:chat_id", isAuthenticated, controller.getById.bind(controller));
 
 export default router;

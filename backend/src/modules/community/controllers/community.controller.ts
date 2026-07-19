@@ -5,6 +5,7 @@ import { supabaseAdmin, uploadFiles } from "@/core/config/supabase";
 import { CommunityTagService } from "../services/community-tag.service";
 import { optimize } from "@/shared/utils/sharp";
 import { CommunityDTO } from "@/shared/interfaces/dto/community.dto";
+import { User } from "@prisma/client";
 
 export class CommunityController {
   constructor(
@@ -63,7 +64,7 @@ export class CommunityController {
   create = async (req: Request, res: Response) => {
     const { community } = req.body as { community: CommunityDTO };
 
-    const user_id = (req as any).user?.id || req.body.user_id;
+    const user_id = (req as any).user?.id;
 
     try {
       if (

@@ -179,7 +179,7 @@ export class CommentController {
           .json({ success: false, message: "Comentario no encontrado" });
       }
 
-      return res.status(200).json({
+      return res.status(204).json({
         success: true,
         message: "Comentario eliminado",
       });

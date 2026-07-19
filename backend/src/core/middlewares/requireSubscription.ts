@@ -1,12 +1,12 @@
 import { Request, Response, NextFunction } from "express";
-import { UserSessionData } from "@/shared/interfaces/dto/user.dto";
+import { prisma } from "@/core/database/prisma/prisma";
 
-export const requireSubscription = (
+export const requireSubscription = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  const user = req.user as UserSessionData;
+  const user = (req as any).user;
 
   if (!user) {
     return res.status(401).json({
@@ -19,7 +19,19 @@ export const requireSubscription = (
     return next();
   }
 
-  const status = user.subscription_status?.toUpperCase();
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { subscription_status: true, trial_ends_at: true },
+  });
+
+  if (!dbUser) {
+    return res.status(401).json({
+      success: false,
+      message: "Usuario no encontrado.",
+    });
+  }
+
+  const status = dbUser.subscription_status?.toUpperCase();
   if (status !== "ACTIVE" && status !== "TRIAL") {
     return res.status(403).json({
       success: false,
@@ -30,8 +42,8 @@ export const requireSubscription = (
 
   if (
     status === "TRIAL" &&
-    user.trial_ends_at &&
-    new Date(user.trial_ends_at) < new Date()
+    dbUser.trial_ends_at &&
+    new Date(dbUser.trial_ends_at) < new Date()
   ) {
     return res.status(403).json({
       success: false,

@@ -11,13 +11,15 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_trgm]
 }
 
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "windows", "debian-openssl-3.0.x"]
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+  binaryTargets   = ["native", "windows", "debian-openssl-3.0.x"]
 }
 
 // Enums
@@ -204,6 +206,7 @@ model User {
   received_replies PostComment[] @relation("RepliedUser")
 
   @@index([email])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, name: "user_name_trgm_idx")
 }
 
 model UserPreference {
@@ -236,7 +239,7 @@ model Notification {
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@index([created_at, user_id])
+  @@index([user_id, created_at(sort: Desc)])
 }
 
 // ========================================================
@@ -279,6 +282,7 @@ model Local {
   credentials Credentials?
 
   @@index([name, latitude, longitude])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, name: "local_name_trgm_idx")
 }
 
 model LocalSchedule {
@@ -359,6 +363,7 @@ model LocalReview {
   order    Order  @relation(fields: [order_id], references: [id])
   order_id String @unique
 
+  @@index([user_id])
   // @@unique([user_id, local_id]) Una por pedido, no por usuario-local para permitir múltiples reseñas si hay múltiples pedidos
 }
 
@@ -403,7 +408,7 @@ model Food {
   promotions  Promotion?
 
   @@index([local_id])
-  @@index([name])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, name: "food_name_trgm_idx")
   @@index([category_id])
 }
 
@@ -462,6 +467,7 @@ model Vote {
   updated_at   DateTime    @updatedAt
 
   @@id([user_id, content_id, content_type])
+  @@index([user_id, content_type, content_id])
 }
 
 // ========================================================
@@ -487,7 +493,7 @@ model Community {
 
   tags CommunityTag[] @relation("CommunityTags")
 
-  @@index([name])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, name: "community_name_trgm_idx")
 }
 
 model TagCategory {
@@ -546,6 +552,10 @@ model Recipe {
   ingredients RecipeIngredient[]
   steps       RecipeStep[]
   posts       Post[]
+
+  @@index([user_id])
+  @@index([created_at(sort: Desc)])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, name: "recipe_name_trgm_idx")
 }
 
 model RecipeIngredient {
@@ -559,6 +569,7 @@ model RecipeIngredient {
   notes         String?
 
   @@index([ingredient_id])
+  @@index([recipe_id])
 }
 
 model RecipeStep {
@@ -597,6 +608,11 @@ model Post {
   comments  PostComment[]
   recipe    Recipe?       @relation(fields: [recipe_id], references: [id], onDelete: SetNull)
   recipe_id String?
+
+  @@index([created_at(sort: Desc)])
+  @@index([community_id])
+  @@index([user_id, active])
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, name: "post_title_trgm_idx")
 }
 
 model PostComment {
@@ -625,6 +641,7 @@ model PostComment {
   @@index([post_id])
   @@index([user_id])
   @@index([parent_comment_id])
+  @@index([content(ops: raw("gin_trgm_ops"))], type: Gin, name: "post_content_trgm_idx")
 }
 
 // ========================================================

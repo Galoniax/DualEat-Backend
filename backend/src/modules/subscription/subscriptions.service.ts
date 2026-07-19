@@ -4,7 +4,7 @@ import {
   PlanDetails,
   LocalPlanType,
 } from "@/shared/interfaces/mercadopago.dto";
-import { SubscriptionPlan, User } from "@prisma/client";
+import { SubscriptionPlan } from "@prisma/client";
 
 import { requestClient } from "../payment/services/payment.service";
 import { PreferenceRequest } from "mercadopago/dist/clients/preference/commonTypes";
@@ -156,7 +156,7 @@ export class SubscriptionService {
   }
 
   async create(
-    user: User,
+    user_id: string,
     plan: "COMMUNITY_USER_MONTHLY" | "COMMUNITY_USER_ANNUAL",
     backendBaseUrl?: string,
   ) {
@@ -165,6 +165,18 @@ export class SubscriptionService {
     let success = `${process.env.CLIENT_URL}/payments/success`;
     let failure = `${process.env.CLIENT_URL}/payments/failure`;
     let pending = `${process.env.CLIENT_URL}/payments/pending`;
+
+    const user = await prisma.user.findUnique({
+      where: { id: user_id },
+      select: {
+        email: true,
+        name: true,
+      },
+    });
+
+    if (!user) {
+      throw new Error("Usuario no encontrado");
+    }
 
     if (backendBaseUrl) {
       // Si el host es una IP local o localhost, usamos la URL pública de ngrok en HTTPS
@@ -176,14 +188,13 @@ export class SubscriptionService {
           ? "https://f4d8-190-190-126-222.ngrok-free.app"
           : backendBaseUrl;
 
-      success = `${baseRedirect}/api/payment/callback?status=success&type=SUBSCRIPTION&id=${user.id}`;
-      failure = `${baseRedirect}/api/payment/callback?status=failure&type=SUBSCRIPTION&id=${user.id}`;
-      pending = `${baseRedirect}/api/payment/callback?status=pending&type=SUBSCRIPTION&id=${user.id}`;
+      success = `${baseRedirect}/api/payment/callback?status=success&type=SUBSCRIPTION&id=${user_id}`;
+      failure = `${baseRedirect}/api/payment/callback?status=failure&type=SUBSCRIPTION&id=${user_id}`;
+      pending = `${baseRedirect}/api/payment/callback?status=pending&type=SUBSCRIPTION&id=${user_id}`;
     }
 
-
     // Usamos LOCAL-NONE para indicar que no es para un comercio específico
-    const reference = `DUALEAT_USER-${user.id}_LOCAL-NONE_PLAN-${plan}`;
+    const reference = `DUALEAT_USER-${user_id}_LOCAL-NONE_PLAN-${plan}`;
 
     let installmentLogic = {};
     if (plan === "COMMUNITY_USER_ANNUAL") {
@@ -217,7 +228,7 @@ export class SubscriptionService {
       payer: {
         email: user.email,
         name: user.name,
-      }
+      },
     };
 
     try {

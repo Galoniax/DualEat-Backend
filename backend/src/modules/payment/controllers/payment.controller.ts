@@ -5,23 +5,13 @@ import { prisma } from "@/core/database/prisma/prisma";
 export class PaymentController {
   constructor(private service: PaymentService) {}
 
+  // HANDLER DE NOTIFICACIONES DE MERCADO PAGO
+  // =========================================================
   paymentNotification = async (req: Request, res: Response) => {
     const query = req.query.topic || req.query.type;
     const body = req.body?.topic || req.body?.type;
 
     const topic = query || body;
-
-    console.log(
-      "WEBHOOK RECIBIDO. Contenido completo:",
-      JSON.stringify(
-        {
-          query: req.query,
-          body: req.body,
-        },
-        null,
-        2,
-      ),
-    );
 
     if (!topic) {
       console.log("Webhook recibido sin topic/type - ignorando");
@@ -81,13 +71,10 @@ export class PaymentController {
           );
           const extRef = merchantOrder.external_reference;
           if (extRef.startsWith("DUALEAT-ORDER-")) {
-            await this.service.processOrderPaymentApproval(
-              extRef,
-              paymentIdStr,
-            );
+            await this.service.processOrder(extRef, paymentIdStr);
             console.log(`Pedido pagado para ref: ${extRef}`);
           } else {
-            await this.service.processPaymentApproval(extRef, paymentIdStr);
+            await this.service.processSubscription(extRef, paymentIdStr);
             console.log(`Suscripción activada para ref: ${extRef}`);
           }
         } else {
@@ -135,15 +122,13 @@ export class PaymentController {
         ) {
           const extRef = paymentInfo.external_reference;
           if (extRef.startsWith("DUALEAT-ORDER-")) {
-            await this.service.processOrderPaymentApproval(
-              extRef,
-              paymentId.toString(),
-            );
+            console.log("ENTREGAASFSDFJKSDF");
+            await this.service.processOrder(extRef, paymentId.toString());
             console.log(
               `Pago aprobado y pedido confirmado para ref: ${extRef}`,
             );
           } else {
-            await this.service.processPaymentApproval(
+            await this.service.processSubscription(
               extRef,
               paymentId.toString(),
             );
@@ -160,12 +145,14 @@ export class PaymentController {
         return res.sendStatus(200);
       }
 
-      return res.sendStatus(200)
+      return res.sendStatus(200);
     } catch (e: any) {
-      return res.sendStatus(500)
+      return res.sendStatus(500);
     }
   };
 
+  // CALLBACK DE AUTHENTICATION
+  // =========================================================
   oauthCallback = async (req: Request, res: Response) => {
     const { code, state: localId } = req.query;
 
@@ -224,38 +211,5 @@ export class PaymentController {
         message: e.message || "Error al vincular Mercado Pago del local.",
       });
     }
-  };
-
-  paymentRedirectCallback = async (req: Request, res: Response) => {
-    const query = req.query as {
-      status: "SUCCESS" | "FAILURE" | "PENDING";
-      type: "PRE_ORDER" | "ORDER" | "SUBSCRIPTION";
-      id?: string;
-    };
-
-    let deepLink = "dualeat://";
-
-    const queryString = new URLSearchParams({
-      status: query.status,
-      type: query.type,
-      id: query.id || "",
-    }).toString();
-
-    switch (query.type) {
-      case "PRE_ORDER":
-        deepLink += `order_info/${query.id}`;
-        break;
-      case "ORDER":
-        deepLink += `payment-result?${queryString}`;
-        break;
-      case "SUBSCRIPTION":
-        deepLink += `?${queryString}`;
-        break;
-      default:
-        break;
-    }
-
-    console.log(`[PAYMENT CALLBACK] Redirigiendo a: ${deepLink}`);
-    return res.redirect(deepLink);
   };
 }
